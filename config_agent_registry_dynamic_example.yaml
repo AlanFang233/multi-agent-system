@@ -1,0 +1,18 @@
+# Example for local trusted A2A agents. Remove the old `delegation:` allowlist.
+agents:
+  research:
+    url: http://127.0.0.1:8001
+    description: Evidence research, web search, source verification and synthesis
+    capabilities: [web_search, evidence_synthesis, documentation_research]
+  coding:
+    url: http://127.0.0.1:8002
+    description: Python debugging, Git auditing, code implementation and sandbox testing
+    capabilities: [git_audit, python_debugging, sandbox_execution, file_editing]
+  analysis:
+    url: http://127.0.0.1:8003
+    description: Statistical analysis, numerical metrics and experiment comparisons
+    capabilities: [statistics, loss_metrics, numerical_analysis]
+policy:
+  max_hops: 2
+  max_delegations_per_task: 3
+  timeout_seconds: 120

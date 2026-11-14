@@ -13,13 +13,36 @@ agents:
 # Begin with a DAG: research can call coding. This prevents endless ping-pong.
 # Once Analysis Agent is running, allow research: [coding, analysis],
 # and optionally coding: [analysis]. Avoid cycles.
-delegation:
+
+agents:
   research:
-    - coding
-    - analysis
+    url: http://127.0.0.1:8001
+    description: Research, web search, evidence verification
+    capabilities:
+      - web_search
+      - evidence_synthesis
+      - documentation_research
 
   coding:
-    - analysis
+    url: http://127.0.0.1:8002
+    description: Software development and Python debugging
+    capabilities:
+      - git_audit
+      - python_debugging
+      - sandbox_execution
+      - file_editing
 
-  analysis: []
+  analysis:
+    url: http://127.0.0.1:8003
+    description: Statistics and numerical analysis
+    capabilities:
+      - statistics
+      - loss_metrics
+      - numerical_analysis
+
+policy:
+  max_hops: 2
+  max_delegations_per_task: 3
+  timeout_seconds: 120
+
     

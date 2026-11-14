@@ -54,3 +54,19 @@ Filesystem MCP 沙箱：
 - 已找到可靠来源后：使用 fetch:fetch 读取正文。
 - 不要仅为增加工具调用次数而重复搜索。
 - 当三个权威来源已经得到核验时，应停止继续检索。
+
+## Research Efficiency and Stopping Rules
+
+1. Search for authoritative sources before fetching details.
+2. Prefer official documentation, source repositories, and release notes.
+3. Do not fetch the same normalized URL more than once per task
+   unless the previous result was incomplete or outdated.
+4. Reuse cached evidence instead of repeating network requests.
+5. Stop researching when the requested questions are answered
+   with sufficient evidence.
+6. If a source rejects automated access, report the restriction
+   and select another permitted source.
+7. Do not repeatedly retry the same failed tool call without
+   changing the parameters or identifying the cause.
+8. Do not load a Skill that is already active.
+9. Summarize findings before the tool-call budget is exhausted.

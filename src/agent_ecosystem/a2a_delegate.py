@@ -4,7 +4,12 @@ import uuid
 import httpx
 
 
-async def send_a2a_text(url: str, prompt: str) -> str:
+async def send_a2a_text(
+        url: str,
+        prompt: str,
+        *,
+        metadata: dict | None = None,
+    ) -> str:
     """通过 A2A JSON-RPC 1.0 发送任务，返回文本 Artifact。"""
 
     payload = {
@@ -16,6 +21,7 @@ async def send_a2a_text(url: str, prompt: str) -> str:
                 "messageId": str(uuid.uuid4()),
                 "role": "ROLE_USER",
                 "parts": [{"text": prompt}],
+                "metadata": metadata if metadata else {}
             },
             "configuration": {
                 "blocking": True,

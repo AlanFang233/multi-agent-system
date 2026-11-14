@@ -1,0 +1,9 @@
+# 适用于单机 WSL2 三 Agent 原型。该文件仅为 memory runner 读取。
+database: data/agent_memory.sqlite
+# 字符数上限，而不是模型精确 token 数；已预留额外模型输出空间。
+max_input_chars: 36000
+compact_trigger_chars: 26000
+keep_recent_groups: 3
+summary_chars: 4000
+max_tool_preview_chars: 2200
+memory_retrieval_limit: 4

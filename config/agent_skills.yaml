@@ -1,0 +1,9 @@
+# Only skills listed under a role are discoverable/loadable by that role.
+root: skills
+agents:
+  research:
+    - evidence-synthesis
+  coding:
+    - git-audit
+  analysis:
+    - loss-analysis

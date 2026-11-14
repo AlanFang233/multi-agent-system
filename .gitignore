@@ -1,0 +1,76 @@
+
+# =====================================
+# 1. Sensitive configuration
+# =====================================
+.env
+.env.*
+!.env.example
+
+# Credentials / private keys
+*.pem
+*.key
+*.p12
+id_rsa
+id_ed25519
+
+# =====================================
+# 2. Python environment
+# =====================================
+.venv/
+venv/
+env/
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# =====================================
+# 3. Test and analysis caches
+# =====================================
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# =====================================
+# 4. Agent Memory and Task Ledger
+# =====================================
+data/
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db
+*.db-*
+
+# =====================================
+# 5. MCP workspace
+# =====================================
+mcp_workspace/
+
+# =====================================
+# 6. Logs and runtime files
+# =====================================
+*.log
+logs/
+tmp/
+temp/
+
+# =====================================
+# 6. Temporary addon archives
+# =====================================
+agent_*_addon*.zip
+
+# =====================================
+# 8. IDE and OS files
+# =====================================
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*~
+*.swp

@@ -1,0 +1,54 @@
+servers:
+  calculator:
+    transport: http
+    url: http://127.0.0.1:9001/mcp
+
+  filesystem:
+    transport: stdio
+    command: /bin/bash
+    args:
+      - /home/alan_fang/projects/multi-agent-system/scripts/start_filesystem_mcp.sh
+
+  git:
+    transport: stdio
+    command: /home/alan_fang/projects/multi-agent-system/.venv/bin/python
+    args:
+      - "-m"
+      - "mcp_server_git"
+      - "--repository"
+      - "/home/alan_fang/projects/multi-agent-system"
+
+  fetch:
+    transport: stdio
+    command: /home/alan_fang/projects/multi-agent-system/.venv/bin/python
+    args:
+      - "-m"
+      - "mcp_server_fetch"
+
+permissions:
+  research:
+    - fetch:fetch
+    - filesystem:read_text_file
+    - filesystem:list_directory
+    - filesystem:get_file_info
+    - filesystem:read_multiple_files
+    - filesystem:read_file
+
+  coding:
+    - calculator:add
+    - filesystem:read_text_file
+    - filesystem:list_directory
+    - filesystem:get_file_info
+    - filesystem:read_multiple_files
+    - filesystem:read_file
+    - git:git_status
+    - git:git_diff_unstaged
+    
+
+  analysis:
+    - calculator:add
+    - filesystem:read_text_file
+    - filesystem:get_file_info
+    - filesystem:read_multiple_files
+    - filesystem:read_file
+

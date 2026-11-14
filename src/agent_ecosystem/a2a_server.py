@@ -1,0 +1,151 @@
+"""Starter A2A server; currently stores tasks in memory.
+
+    python -m agent_ecosystem.a2a_server --name research --port 8001
+"""
+import argparse
+
+import uvicorn
+from a2a.helpers import get_message_text, new_task_from_user_message, new_text_part
+from a2a.server.agent_execution import AgentExecutor, RequestContext
+from a2a.server.events import EventQueue
+from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
+from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
+from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill, TaskState
+from openai import AsyncOpenAI
+from starlette.applications import Starlette
+from starlette.responses import JSONResponse
+from starlette.routing import Route
+
+from agent_ecosystem.settings import get_settings
+from agent_ecosystem.tool_agent import ask_with_tools
+from agent_ecosystem.a2a_delegate import delegate_to_coding
+
+
+PROMPTS = {
+    "research": """
+你是 Research Agent，负责研究、信息整合和最终报告。
+
+工具使用规则：
+
+1. 首先判断任务需要哪些专业能力。
+2. 如果需要 Git、代码或开发相关能力，应优先委托 Coding Agent。
+3. 如果自己没有权限访问目标目录，不要反复读取相同路径。
+4. 同一路径连续出现访问拒绝或文件不存在后，应停止重复尝试。
+5. 收到下游 Agent 的结果后，评估证据是否足够。
+6. 如果已有足够证据，应及时生成最终报告。
+7. 不得声称执行了未实际执行的工具操作。
+8. 委托其他 Agent 时，只传递具体、明确的子任务。
+9. 不要重复委托已经成功完成的相同任务。
+10. 工具调用的目标是解决用户问题，而不是尽可能多地调用工具。
+""",
+    "coding": "You are a coding agent. Provide maintainable solutions; never claim code was executed unless it was.",
+    "analysis": "You are an analysis agent. Examine assumptions, tradeoffs, and uncertainty.",
+}
+
+
+class RoleExecutor(AgentExecutor):
+    def __init__(self, role: str):
+        self.role = role
+
+    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        if context.current_task:
+            task = context.current_task
+        else:
+            task = new_task_from_user_message(context.message)
+            await event_queue.enqueue_event(task)
+        updater = TaskUpdater(
+            event_queue=event_queue, task_id=task.id, context_id=task.context_id
+        )
+        await updater.update_status(state=TaskState.TASK_STATE_WORKING)
+        prompt = get_message_text(context.message) or "Hello"
+        settings = get_settings()
+        try:
+            if settings.openai_api_key:  
+                async with AsyncOpenAI(
+                    api_key=settings.openai_api_key,
+                    base_url=settings.openai_base_url,
+                ) as client:
+                    
+                    # role 和 prompt 使用 execute() 里已有的变量。
+                    # 如果角色当前保存在 self.role，则改为 self.role。
+                    answer, used_tools = await ask_with_tools(
+                                            role=self.role,
+                                            prompt=prompt,
+                                        )
+
+
+            else:
+                answer = f"[DEMO / no API key] {self.role} agent received: {prompt}"
+            await updater.add_artifact(
+                parts=[new_text_part(text=answer, media_type="text/plain")]
+            )
+            await updater.update_status(state=TaskState.TASK_STATE_COMPLETED)
+        except Exception:
+            # In production: record structured error details privately and persist retry status.
+            await updater.update_status(state=TaskState.TASK_STATE_FAILED)
+            raise
+
+    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        raise NotImplementedError("Cancellation is not implemented in the starter")
+
+
+def create_app(role: str, advertised_url: str) -> Starlette:
+    card = AgentCard(
+        name=f"{role.title()} Agent",
+        description=f"Local {role} agent; initial A2A demonstration",
+        version="0.1.0",
+        default_input_modes=["text/plain"],
+        default_output_modes=["text/plain"],
+        capabilities=AgentCapabilities(streaming=False),
+        supported_interfaces=[
+            AgentInterface(
+                protocol_binding="JSONRPC",
+                url=advertised_url,
+                protocol_version="1.0",
+            )
+        ],
+        skills=[
+            AgentSkill(
+                id=f"{role}_task",
+                name=f"{role.title()} task",
+                description=f"Respond to requests in the {role} domain",
+                tags=[role],
+            )
+        ],
+    )
+    handler = DefaultRequestHandler(
+        agent_executor=RoleExecutor(role),
+        task_store=InMemoryTaskStore(),
+        agent_card=card,
+    )
+    async def health(_):
+        return JSONResponse({"status": "ok", "agent": role})
+
+    return Starlette(
+        routes=[
+            Route("/health", health),
+            *create_agent_card_routes(card),
+            *create_jsonrpc_routes(handler, "/"),
+        ]
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--name", choices=list(PROMPTS), required=True)
+    parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--host", default="127.0.0.1")
+    args = parser.parse_args()
+    settings = get_settings()
+    urls = {
+        "research": settings.research_agent_url,
+        "coding": settings.coding_agent_url,
+        "analysis": settings.analysis_agent_url,
+    }
+    app = create_app(args.name, urls[args.name])
+    uvicorn.run(app, host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()

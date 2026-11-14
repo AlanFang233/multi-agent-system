@@ -15,6 +15,13 @@ servers:
     args:
       - /home/alan_fang/projects/multi-agent-system/scripts/start_code_filesystem_mcp.sh
 
+  sandbox:
+    transport: stdio
+    command: /home/alan_fang/projects/multi-agent-system/.venv/bin/python
+    args:
+      - -m
+      - agent_ecosystem.sandbox_mcp_server
+
   free_search:
     transport: stdio
     command: /home/alan_fang/.local/bin/uvx
@@ -72,6 +79,9 @@ permissions:
     - git:git_show
     - git:git_branch
     - git:git_remote
+    - sandbox:create
+    - sandbox:run_python
+    - sandbox:run_pytest
     
 
   analysis:

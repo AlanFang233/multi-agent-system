@@ -5,5 +5,6 @@ agents:
     - evidence-synthesis
   coding:
     - git-audit
+    - python-debugging
   analysis:
     - loss-analysis

@@ -1,9 +1,23 @@
-# 适用于单机 WSL2 三 Agent 原型。该文件仅为 memory runner 读取。
+
+# config/memory.yaml
+
 database: data/agent_memory.sqlite
-# 字符数上限，而不是模型精确 token 数；已预留额外模型输出空间。
-max_input_chars: 36000
-compact_trigger_chars: 26000
-keep_recent_groups: 3
-summary_chars: 4000
-max_tool_preview_chars: 2200
-memory_retrieval_limit: 4
+
+# 输入字符预算（不是 Token）
+max_input_chars: 128000
+
+# 约达到 75% 时压缩旧上下文
+compact_trigger_chars: 96000
+
+# 保留最近 4 组工具交互
+keep_recent_groups: 10
+
+# 压缩摘要最多 6000 字符
+summary_chars: 24000
+
+# 每次工具结果最多预览 3000 字符
+max_tool_preview_chars: 8000
+
+# 最多检索 4 条长期记忆
+memory_retrieval_limit: 10
+  

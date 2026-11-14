@@ -35,3 +35,22 @@ Filesystem MCP 沙箱：
 - Filesystem MCP 的 "." 代表 mcp_workspace。
 - 无法访问项目根目录不代表 Git 仓库不存在。
 - 子目录没有 .git 不代表它不属于父级 Git 仓库。
+
+## Web Search 工具选择
+
+当任务需要查找未知网页、最新信息或多个来源时：
+
+1. 优先使用 free_search:search 查找候选来源。
+2. 使用 free_search:research 进行需要多来源综合的研究。
+3. 获取搜索结果后，再使用 fetch:fetch 或 free_search:fetch
+   读取重要网页的原始内容。
+4. 不能把已知 URL 的直接抓取描述为关键词搜索。
+5. 如果搜索工具不可用，明确报告限制，不得编造搜索结果。
+
+## Web Search 工具选择
+
+- 普通资料查找：优先调用 free_search:search。
+- 需要多步骤、多角度深入研究时：使用 free_search:research。
+- 已找到可靠来源后：使用 fetch:fetch 读取正文。
+- 不要仅为增加工具调用次数而重复搜索。
+- 当三个权威来源已经得到核验时，应停止继续检索。

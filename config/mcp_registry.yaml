@@ -9,6 +9,18 @@ servers:
     args:
       - /home/alan_fang/projects/multi-agent-system/scripts/start_filesystem_mcp.sh
 
+  filesystem_code:
+    transport: stdio
+    command: /bin/bash
+    args:
+      - /home/alan_fang/projects/multi-agent-system/scripts/start_code_filesystem_mcp.sh
+
+  free_search:
+    transport: stdio
+    command: /home/alan_fang/.local/bin/uvx
+    args:
+      - free-search-mcp
+
   git:
     transport: stdio
     command: /home/alan_fang/projects/multi-agent-system/.venv/bin/python
@@ -33,6 +45,9 @@ permissions:
     - filesystem:get_file_info
     - filesystem:read_multiple_files
     - filesystem:read_file
+    - free_search:search
+    - free_search:research
+    - free_search:fetch
 
   coding:
     - calculator:add
@@ -41,8 +56,22 @@ permissions:
     - filesystem:get_file_info
     - filesystem:read_multiple_files
     - filesystem:read_file
+    - filesystem_code:list_directory
+    - filesystem_code:read_text_file
+    - filesystem_code:read_multiple_files
+    - filesystem_code:write_file
+    - filesystem_code:edit_file
+    - filesystem_code:create_directory
     - git:git_status
     - git:git_diff_unstaged
+    - git:git_status
+    - git:git_diff_unstaged
+    - git:git_diff_staged
+    - git:git_diff
+    - git:git_log
+    - git:git_show
+    - git:git_branch
+    - git:git_remote
     
 
   analysis:

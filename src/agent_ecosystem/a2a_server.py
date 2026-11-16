@@ -81,6 +81,26 @@ PROMPTS = {
 }
 
 
+def _normalize_metadata(message) -> dict:
+    """Return A2A message metadata as a plain dict.
+
+    a2a-sdk>=1.3 deserializes incoming JSON ``metadata`` into a protobuf
+    ``Struct`` which has no ``.get()``; other/older paths may hand a plain dict.
+    Normalize both shapes so downstream ``x-agent-delegation`` parsing works.
+    Empty/None metadata yields ``{}``.
+    """
+    raw = getattr(message, "metadata", None)
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    from google.protobuf.json_format import MessageToDict
+    try:
+        return MessageToDict(raw)
+    except Exception:
+        return {}
+
+
 class RoleExecutor(AgentExecutor):
     def __init__(self, role: str):
         self.role = role
@@ -97,7 +117,7 @@ class RoleExecutor(AgentExecutor):
         await updater.update_status(state=TaskState.TASK_STATE_WORKING)
         prompt = get_message_text(context.message) or "Hello"
         
-        raw_metadata = getattr(context.message, "metadata", None) or {}
+        raw_metadata = _normalize_metadata(context.message)
 
         delegation_meta = raw_metadata.get("x-agent-delegation", {})
 

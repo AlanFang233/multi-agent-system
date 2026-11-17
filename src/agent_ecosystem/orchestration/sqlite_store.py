@@ -99,13 +99,23 @@ def _json_dumps(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, default=str, separators=(",", ":"))
 
 
-def _json_loads(raw: Any) -> Any:
+def _safe_json(raw: Any, default: Any = None) -> Any:
+    """Parse JSON, returning ``default`` on any failure (never a Row or raw string)."""
+    if raw is None:
+        return default if default is not None else {}
+    if isinstance(raw, (dict, list)):
+        return raw
     if isinstance(raw, str):
         try:
             return json.loads(raw)
-        except (json.JSONDecodeError, TypeError):
-            return raw
-    return raw
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return default if default is not None else {}
+    return default if default is not None else {}
+
+
+def _json_loads(raw: Any) -> Any:
+    """Legacy wrapper kept for backward compatibility; use _safe_json elsewhere."""
+    return _safe_json(raw, raw if isinstance(raw, str) else {})
 
 
 class SQLiteWorkflowStore(WorkflowStore):
@@ -269,20 +279,20 @@ def _row_to_workflow(row: sqlite3.Row) -> Workflow:
         workflow_id=row["workflow_id"], goal=row["goal"],
         status=WorkflowStatus(row["status"]), final_result=row["final_result"],
         error=row["error"], created_at=row["created_at"],
-        finished_at=row["finished_at"], metadata=_json_loads(row["metadata_json"]))
+        finished_at=row["finished_at"], metadata=_safe_json(row["metadata_json"]))
 
 
 def _row_to_node(row: sqlite3.Row) -> WorkflowNode:
-    meta = _json_loads(row["metadata_json"]) if isinstance(row.get("metadata_json"), str) else {}
     return WorkflowNode(
         node_id=row["node_id"], workflow_id=row["workflow_id"], plan_key=row["plan_key"],
         description=row["description"],
-        required_capabilities=_json_loads(row["required_capabilities"]),
+        required_capabilities=_safe_json(row["required_capabilities"], []),
         assigned_agent=row["assigned_agent"],
-        dependencies=_json_loads(row["dependencies"]),
+        dependencies=_safe_json(row["dependencies"], []),
         status=NodeStatus(row["status"]), attempt=row["attempt"],
         priority=row["priority"], kind=row["kind"],
         result=row["result"], error=row["error"],
-        evidence_refs=_json_loads(row["evidence_refs"]), depth=row["depth"],
+        evidence_refs=_safe_json(row["evidence_refs"], []), depth=row["depth"],
         created_at=row["created_at"], started_at=row["started_at"],
-        finished_at=row["finished_at"], metadata=meta)
+        finished_at=row["finished_at"],
+        metadata=_safe_json(row["metadata_json"]))

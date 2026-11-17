@@ -84,11 +84,7 @@ PROMPTS = {
 
 
 def _workflow_context(raw_metadata: dict) -> dict:
-    """Extract Phase 2 x-workflow fields; tolerant of absent/invalid data.
-
-    Returns a dict with optional keys task_id / parent_task_id / max_tool_calls.
-    Absent metadata keeps the legacy (pre-Phase 2) behavior untouched.
-    """
+    """Extract Phase 2+3 x-workflow fields; tolerant of absent/invalid data."""
     meta = raw_metadata.get("x-workflow", {})
     if not isinstance(meta, dict):
         return {}
@@ -102,10 +98,17 @@ def _workflow_context(raw_metadata: dict) -> dict:
     budget = meta.get("budget")
     if isinstance(budget, dict):
         max_tools = budget.get("max_tool_calls")
-        # protobuf Struct round-trips integers as floats; accept integral values.
         if isinstance(max_tools, (int, float)) and not isinstance(max_tools, bool):
             if max_tools == int(max_tools) and max_tools > 0:
                 out["max_tool_calls"] = int(max_tools)
+    # Phase 3: HITL approval token injection
+    tokens = meta.get("approval_tokens")
+    if isinstance(tokens, list) and tokens:
+        tok = tokens[0]
+        if isinstance(tok, dict):
+            aid = tok.get("approval_id")
+            if isinstance(aid, str) and aid:
+                out["approval_id"] = aid
     return out
 
 
@@ -160,6 +163,7 @@ class RoleExecutor(AgentExecutor):
         wf_task_id = wf_context.get("task_id")
         wf_parent = wf_context.get("parent_task_id")
         wf_max_tools = wf_context.get("max_tool_calls")
+        wf_approval_id = wf_context.get("approval_id")
         if wf_task_id:
             workflow_meta = raw_metadata.get("x-workflow") or {}
             print(
@@ -186,6 +190,7 @@ class RoleExecutor(AgentExecutor):
                                     task_id=wf_task_id,
                                     parent_task_id=wf_parent,
                                     max_tool_calls=wf_max_tools,
+                                    approval_id=wf_approval_id,
                                 )
 
 

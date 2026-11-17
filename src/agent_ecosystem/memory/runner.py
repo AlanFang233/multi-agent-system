@@ -103,6 +103,7 @@ async def run_tool_loop_with_memory(
     *, role: str, prompt: str, registry: Any, client: Any, model: str,
     force_tool: str | None = None, max_rounds: int = 12,
     task_id: str | None = None, parent_task_id: str | None = None,
+    approval_id: str | None = None,
     config_path: str | Path | None = "config/memory.yaml",
 ) -> tuple[str,list[str]]:
     """Run with bounded history, per-task durable checkpoint and verified memories.
@@ -217,11 +218,11 @@ async def run_tool_loop_with_memory(
                             wf_id = parts[0]
                             node_id = parts[1] if len(parts) >= 2 else ""
                             db_path = conf.get("orchestration_database", "data/orchestration.sqlite")
-                            approval_id = conf.get("_approval_token")
-                            if approval_id:
+                            token = approval_id  # Phase 3: injected via A2A x-workflow metadata
+                            if token:
                                 from agent_ecosystem.orchestration.tool_policy import check_and_consume_approval
                                 status = check_and_consume_approval(
-                                    db_path, approval_id=approval_id, tool_id=tool_id,
+                                    db_path, approval_id=token, tool_id=tool_id,
                                     arguments=arguments, workflow_id=wf_id,
                                     node_id=node_id, agent_id=role,
                                 )

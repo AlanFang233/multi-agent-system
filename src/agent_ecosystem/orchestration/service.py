@@ -217,9 +217,11 @@ class A2ANodeDispatcher:
             },
         }
         started = time.monotonic()
+        text = ""
+        state = "UNKNOWN"
         try:
-            text = await send_a2a_text(
-                url, prompt, metadata=metadata, timeout=self.request_timeout
+            state, text = await send_a2a_text(
+                url, prompt, metadata=metadata, timeout=self.request_timeout, return_status=True
             )
         except httpx.ConnectError as exc:
             return DispatchOutcome(
@@ -232,7 +234,6 @@ class A2ANodeDispatcher:
                 error=f"A2A timeout: {type(exc).__name__}", error_kind="timeout",
             )
         except RuntimeError as exc:
-            # send_a2a_text raises on error responses / non-completed task states
             return DispatchOutcome(
                 node_id=node.node_id, ok=False, agent_id=agent_id,
                 error=str(exc), error_kind="failed_state",
@@ -243,6 +244,22 @@ class A2ANodeDispatcher:
                 error=f"{type(exc).__name__}: {exc}", error_kind="exception",
             )
         duration = round(time.monotonic() - started, 3)
+
+        # Phase 3: detect HITL suspension (approval / clarification)
+        if state in ("TASK_STATE_INPUT_REQUIRED", "input_required"):
+            payload = {}
+            try:
+                payload = json.loads(text) if text else {}
+            except json.JSONDecodeError:
+                pass
+            return DispatchOutcome(
+                node_id=node.node_id, ok=False, agent_id=agent_id,
+                error=f"A2A suspension: {payload.get('suspend', 'approval')}",
+                error_kind="input_required",
+                a2a_calls=1, duration_seconds=duration,
+                evidence=payload,
+            )
+
         if not text or not text.strip():
             return DispatchOutcome(
                 node_id=node.node_id, ok=False, agent_id=agent_id,
@@ -270,6 +287,9 @@ class WorkflowService:
         agent_cards: list | None = None,
         events: EventLogger | None = None,
         provider_kind: str = "unknown",
+        approvals: Any = None,
+        clarifications: Any = None,
+        control: Any = None,
     ) -> None:
         self.config = {**DEFAULT_CONFIG, **(config or {})}
         self.store = store or InMemoryWorkflowStore()
@@ -282,6 +302,10 @@ class WorkflowService:
         self.agent_urls = {c.agent_id: c.url for c in self.assigner.cards}
         self._dispatcher_factory = dispatcher_factory or self._default_dispatcher
         self.events = events
+        self.approvals = approvals
+        self.clarifications = clarifications
+        self.control = control
+        self._recovered = False
 
     # -- factory helper ------------------------------------------------------
 
@@ -597,9 +621,30 @@ def build_default_service(
         max_depth=int(config["max_depth"]),
     )
     events = EventLogger(config["events_file"])
+
+    # Phase 3: durable SQLite store + HITL services
+    db_path = str(config.get("orchestration_database", "data/orchestration.sqlite"))
+    from agent_ecosystem.orchestration.sqlite_store import SQLiteWorkflowStore
+    from agent_ecosystem.orchestration.hitl import (
+        ApprovalRepository, ApprovalService,
+        ClarificationRepository, ClarificationService,
+        WorkflowControlService,
+    )
+
+    store = SQLiteWorkflowStore(db_path)
+    approval_repo = ApprovalRepository(db_path)
+    clarification_repo = ClarificationRepository(db_path)
+    approval_svc = ApprovalService(approval_repo)
+    clarification_svc = ClarificationService(clarification_repo)
+    control = WorkflowControlService(db_path)
+
     return WorkflowService(
         planner=planner,
         config=config,
+        store=store,
         events=events,
         provider_kind=provider_kind or "unknown",
+        approvals=approval_svc,
+        clarifications=clarification_svc,
+        control=control,
     )

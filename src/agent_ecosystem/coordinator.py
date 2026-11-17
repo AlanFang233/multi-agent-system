@@ -36,60 +36,70 @@ class AnswerRequest(BaseModel):
 
 
 DASHBOARD_HTML = """<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>AgentForge P3 Dashboard</title>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AgentForge P3 Dashboard</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:960px;margin:20px auto;padding:0 16px}
-h1{font-size:1.4em}.card{background:#f5f5f5;border-radius:8px;padding:12px;margin:8px 0}
-.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.85em}
+*{box-sizing:border-box}body{font-family:system-ui,sans-serif;max-width:1100px;margin:0 auto;padding:12px;background:#f8f9fa}
+.banner{background:#fff3cd;color:#856404;padding:8px 16px;border-radius:6px;text-align:center;font-weight:bold;margin-bottom:12px}
+h1{font-size:1.3em;margin:0 0 8px 0}.card{background:#fff;border-radius:8px;padding:14px;margin:8px 0;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.82em;font-weight:600}
 .ok{background:#d4edda;color:#155724}.fail{background:#f8d7da;color:#721c24}
-.warn{background:#fff3cd;color:#856404}.run{background:#cce5ff;color:#004085}
-pre{background:#eee;padding:8px;border-radius:4px;overflow-x:auto;max-height:400px}
-button,input{padding:6px 12px;margin:4px;border:1px solid #ccc;border-radius:4px}
-h2{font-size:1.1em;margin-top:20px}
+.warn{background:#fff3cd;color:#856404}.run{background:#cce5ff;color:#004085}.wait{background:#e2d5f1;color:#5a3d7a}
+pre{background:#f1f3f5;padding:8px;border-radius:4px;overflow-x:auto;max-height:300px;font-size:.85em}
+button,input,select{padding:6px 12px;margin:3px;border:1px solid #ccc;border-radius:4px;font-size:.9em;cursor:pointer}
+button:hover{opacity:.9}button.danger{background:#dc3545;color:#fff;border-color:#dc3545}
+button.ok{background:#28a745;color:#fff;border-color:#28a745}
+button.warn{background:#ffc107;border-color:#ffc107}
+details{margin:6px 0}summary{cursor:pointer;font-weight:600;margin-bottom:4px}
+.row{display:flex;gap:12px;flex-wrap:wrap}.col{flex:1;min-width:280px}
+.dag{margin:6px 0 0 20px;border-left:2px solid #dee2e6;padding-left:12px}
+.dag-node{padding:4px 8px;margin:2px 0;border-radius:4px;font-size:.85em;display:flex;align-items:center;gap:8px}
+.dag-node .key{font-weight:600;min-width:100px}
+h2{font-size:1.05em;margin:16px 0 6px 0}hr{border:0;border-top:1px solid #dee2e6;margin:12px 0}
 </style></head><body>
-<h1>🔄 AgentForge Phase 3 Dashboard <span class="badge warn">MOCK LLM</span></h1>
-<details><summary>⚙️ Submit new workflow</summary>
-<div class="card">
-<input id="goal" size="60" placeholder="Describe your task in natural language...">
-<button onclick="submit()">Submit</button>
-<p id="submitStatus"></p>
-</div></details>
-<details open><summary>📋 Workflows</summary>
-<div id="workflows">Loading...</div></details>
-<details open><summary>✅ Pending Approvals</summary>
-<div id="approvals">Loading...</div></details>
-<details open><summary>❓ Open Clarifications</summary>
-<div id="clarifications">Loading...</div></details>
+<div class="banner" id="modeBanner">🟡 MOCK MODE — All LLM decisions are mock-scripted. Tool execution is real.</div>
+<h1>🔄 AgentForge Phase 3 Dashboard</h1>
+<div class="row">
+<div class="col"><div class="card">
+<h2>📝 Submit Task</h2>
+<input id="goal" size="50" placeholder="Describe your task...">
+<button onclick="submit()">Submit</button><div id="submitStatus" style="margin-top:4px;font-size:.85em"></div>
+</div><div class="card">
+<h2>📋 Workflows</h2><div id="workflows">Loading...</div>
+</div></div>
+<div class="col"><div class="card">
+<h2>✅ Approvals</h2><div id="approvals">Loading...</div>
+</div><div class="card">
+<h2>❓ Clarifications</h2><div id="clarifications">Loading...</div>
+</div></div>
+</div>
+<div id="detailPanel"></div>
 <script>
-const BASE="";async function api(p,m,b){let o={};if(b){o.method=m;o.headers={"Content-Type":"application/json"};o.body=JSON.stringify(b)}
-let r=await fetch(BASE+p,o);return r.json()}
+const B="";let S="";
+async function api(p,m,b){let o={};if(b){o.method=m;o.headers={"Content-Type":"application/json"};o.body=JSON.stringify(b)}
+let r=await fetch(B+p,o);return r.headers.get("content-type")||"".includes("html")?r.text():r.json()}
 async function submit(){let g=document.getElementById("goal").value;
 let r=await api("/workflows","POST",{goal:g});
 document.getElementById("submitStatus").innerText="Submitted: "+r.workflow_id+" ("+r.status+")";refresh()}
-async function refresh(){
-let w=await api("/workflows?limit=20");document.getElementById("workflows").innerHTML=
-w.map(w=>`<div class="card"><b>${w.workflow_id.slice(0,16)}…</b>
-<span class="badge ${w.status==='completed'?'ok':w.status==='failed'?'fail':'run'}">${w.status}</span>
-${w.error?`<br><small>${w.error.slice(0,120)}</small>`:''}
-<div style="margin-top:6px"><button onclick="detail('${w.workflow_id}')">Detail</button>
-<button onclick="act('${w.workflow_id}','pause')">Pause</button>
-<button onclick="act('${w.workflow_id}','resume')">Resume</button>
-<button onclick="act('${w.workflow_id}','cancel')">Cancel</button>
-<button onclick="act('${w.workflow_id}','result')">Result</button></div></div>`).join('');
-let a=await api("/approvals?status=pending");document.getElementById("approvals").innerHTML=
-a.map(a=>`<div class="card"><b>${a.tool_id}</b> <span class="badge warn">${a.risk_level}</span>
-<pre>${a.summary.slice(0,300)}</pre>
-<button onclick="decide('${a.approval_id}','approve')">Approve</button>
-<button onclick="decide('${a.approval_id}','reject')">Reject</button></div>`).join('')||'(none)';
-let c=await api("/clarifications?status=open");document.getElementById("clarifications").innerHTML=
-c.map(c=>`<div class="card"><b>Q:</b> ${c.question}<br>
-<input id="ans_${c.clarification_id}" size="40" placeholder="Your answer...">
-<button onclick="answerClarify('${c.clarification_id}')">Answer</button></div>`).join('')||'(none)';}
-async function detail(id){let d=await api("/workflows/"+id);alert(JSON.stringify(d,null,2).slice(0,2000))}
-async function act(id,action){let r=await api("/workflows/"+id+(action==='result'?'/result':`/${action}`),action==='result'?'GET':'POST');alert(JSON.stringify(r,null,2).slice(0,2000));refresh()}
+async function act(id,action){await api("/workflows/"+id+(action==='result'?'/result':`/${action}`),action==='result'?'GET':'POST');refresh()}
 async function decide(id,decision){await api("/approvals/"+id+"/decide","POST",{decision:decision});refresh()}
 async function answerClarify(id){let v=document.getElementById("ans_"+id).value;await api("/clarifications/"+id+"/answer","POST",{answer:v});refresh()}
-refresh();setInterval(refresh,8000);
+async function showDetail(id){S=id;refresh()}
+function dagTree(nodes,pid){
+  let ch=nodes.filter(n=>n.dependencies&&n.dependencies.includes(pid));
+  if(!ch.length)return"";return ch.map(n=>{
+    let b=statusBadge(n.status);
+    return'<div class="dag"><div class="dag-node"><span class="key">🔹 '+(n.plan_key||n.node_id.slice(0,10))+'</span>'+
+      '<span>'+b+'</span><span>🤖 '+(n.assigned_agent||"—")+'</span>'+(n.result?('<span style="font-size:.75em;color:#666">'+n.result.slice(0,60)+'</span>'):'')+
+      '</div>'+dagTree(nodes,n.node_id)+'</div>';
+  }).join("");}
+function statusBadge(s){let c=s==="completed"?"ok":s==="failed"?"fail":s==="running"?"run":s==="waiting_input"?"wait":"warn";return'<span class="badge '+c+'">'+s+'</span>';}
+async function refresh(){
+  document.getElementById("modeBanner").innerText="🟡 MOCK MODE — All LLM decisions are mock-scripted. Tool execution is real.";
+  let w=await api("/workflows?limit=20");let h="";(w||[]).forEach(wf=>{h+=`<div class="card"><b>${wf.workflow_id.slice(0,18)}…</b> ${statusBadge(wf.status)}<div style="font-size:.82em;color:#555;margin:2px 0">${wf.goal.slice(0,100)}</div><button onclick="showDetail('${wf.workflow_id}')">🔍 Detail</button> <button onclick="act('${wf.workflow_id}','pause')">⏸</button> <button onclick="act('${wf.workflow_id}','resume')">▶</button> <button class="danger" onclick="act('${wf.workflow_id}','cancel')">✕</button>${wf.status==='completed'?' <button onclick="act(\''+wf.workflow_id+'\',\'result\')">📄</button>':''}${wf.error?`<br><small style="color:red">${wf.error.slice(0,150)}</small>`:''}</div>`;if(wf.workflow_id===S){(async()=>{let d=await api("/workflows/"+wf.workflow_id);let nodes=d.nodes||[],roots=nodes.filter(n=>!(n.dependencies||[]).length);let tree=roots.map(r=>'<div class="dag"><div class="dag-node"><span class="key">📌 '+(r.plan_key||r.node_id.slice(0,10))+'</span>'+statusBadge(r.status)+'<span>🤖 '+(r.assigned_agent||"—")+'</span>'+(r.kind==="synthesis"?'<span>🔗SYNTHESIS</span>':'')+'</div>'+dagTree(nodes,r.node_id)+'</div>').join("");let ev=(d.events||[]).slice(-8).map(e=>'<div style="font-size:.75em;color:#888">'+e.event_type+'</div>').join("");let res=wf.status==="completed"&&d.workflow.final_result?'<pre>'+d.workflow.final_result.slice(0,1500)+'</pre>':'';document.getElementById("detailPanel").innerHTML='<div class="card"><b>DAG</b><div style="max-height:350px;overflow-y:auto">'+(tree||"(no nodes)")+'</div>'+res+'<details><summary>Events</summary>'+ev+'</details></div>';})();}});document.getElementById("workflows").innerHTML=h||"(none)";
+  let a=await api("/approvals?status=pending");let ah="";(a||[]).forEach(r=>{ah+=`<div class="card"><b>${r.tool_id}</b> <span class="badge warn">${r.risk_level}</span><pre>${r.summary.slice(0,250)}</pre><button class="ok" onclick="decide('${r.approval_id}','approve')">✓ Approve</button> <button class="danger" onclick="decide('${r.approval_id}','reject')">✕ Reject</button></div>`;});document.getElementById("approvals").innerHTML=ah||"(none)";
+  let c=await api("/clarifications?status=open");let ch="";(c||[]).forEach(r=>{ch+=`<div class="card"><b>Q:</b> ${r.question}<br><input id="ans_${r.clarification_id}" size="35"><button onclick="answerClarify('${r.clarification_id}')">Answer</button></div>`;});document.getElementById("clarifications").innerHTML=ch||"(none)";}
+refresh();setInterval(refresh,6000);
 </script></body></html>"""
 
 
@@ -150,7 +160,7 @@ def create_app(service: Any = None) -> FastAPI:
     @app.get("/workflows")
     async def list_workflows(limit: int = 50, status: str | None = None):
         svc = get_service()
-        workflows = await svc.store.list_workflows(limit=limit)
+        workflows = svc.store.list_workflows(limit=limit)
         if status:
             workflows = [w for w in workflows if w.status.value == status]
         return [
@@ -171,7 +181,7 @@ def create_app(service: Any = None) -> FastAPI:
     @app.get("/workflows/{workflow_id}/result")
     async def workflow_result(workflow_id: str):
         svc = get_service()
-        workflow = await svc.store.get_workflow(workflow_id)
+        workflow = svc.store.get_workflow(workflow_id)
         if workflow is None:
             return JSONResponse({"error": "unknown workflow"}, status_code=404)
         if workflow.status.value != "completed" or not workflow.final_result:
@@ -192,7 +202,7 @@ def create_app(service: Any = None) -> FastAPI:
     @app.post("/workflows/{workflow_id}/pause")
     async def pause_workflow(workflow_id: str):
         svc = get_service()
-        if await svc.store.get_workflow(workflow_id) is None:
+        if svc.store.get_workflow(workflow_id) is None:
             return JSONResponse({"error": "unknown workflow"}, status_code=404)
         svc.control.pause(workflow_id)
         return {"status": "paused", "workflow_id": workflow_id}
@@ -200,7 +210,7 @@ def create_app(service: Any = None) -> FastAPI:
     @app.post("/workflows/{workflow_id}/resume")
     async def resume_workflow(workflow_id: str):
         svc = get_service()
-        if await svc.store.get_workflow(workflow_id) is None:
+        if svc.store.get_workflow(workflow_id) is None:
             return JSONResponse({"error": "unknown workflow"}, status_code=404)
         svc.control.resume(workflow_id)
         return {"status": "resumed", "workflow_id": workflow_id}
@@ -253,11 +263,11 @@ def create_app(service: Any = None) -> FastAPI:
         if req is None:
             return JSONResponse({"error": "unknown or already answered clarification"}, status_code=404)
         # Resume the waiting node
-        node = await svc.store.get_node(req.node_id) if req.node_id else None
+        node = svc.store.get_node(req.node_id) if req.node_id else None
         if node and node.status.value == "waiting_input":
             node.metadata["clarification_answer"] = req.answer
             node.metadata["replay_mode"] = True
-            await svc.store.save_node(node)
+            svc.store.save_node(node)
             # Transition back to PENDING so the scheduler picks it up
             # (the scheduler's main loop will re-launch it)
         return {"clarification_id": req.clarification_id, "status": req.status}

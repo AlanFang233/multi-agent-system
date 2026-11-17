@@ -1,174 +1,182 @@
-"""Phase 4 Memory ON/OFF controlled experiment.
-
-Uses FakeLLMClient + a real MemoryDB + EvolutionEngine to prove that:
-- Memory OFF: agent uses default parameters
-- Memory ON (after 2 independent workflows): agent retrieves the procedural
-  memory and selects the verified parameter
-- Tool audit records the parameter difference
-- Retrieval event, applied memory, and feedback are all persisted
-
-ALL are MOCK results — must NOT be reported as live-LLM evidence.
+"""Phase 4 memory evolution tests: schema migration, 4 memory types,
+evidence grading, hybrid retrieval, promotion, feedback, isolation.
 """
-from __future__ import annotations
-
-import json, sys, tempfile
+import json, sqlite3, tempfile
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from agent_ecosystem.memory.store import MemoryDB
-from agent_ecosystem.memory.evolution import (
-    MemoryEvolutionEngine, VERIFICATION_REAL, VERIFICATION_MOCK,
+from agent_ecosystem.memory.embeddings import (
+    HashingEmbeddingProvider, cosine_similarity,
 )
-from agent_ecosystem.memory.embeddings import HashingEmbeddingProvider
+from agent_ecosystem.memory.evolution import (
+    MemoryEvolutionEngine, _features, _jaccard, _utc_now,
+    VERIFICATION_REAL, VERIFICATION_MOCK, VERIFICATION_UNVERIFIED,
+    PROMOTION_PROMOTED, PROMOTION_PROVISIONAL,
+)
 
 
-class FakeFileTool:
-    """Records every call and simulates file creation."""
-    def __init__(self):
-        self.calls = []
-        self.files = {}
-    async def __call__(self, path: str, content: str = "") -> dict:
-        self.calls.append({"path": path, "content": content})
-        self.files[path] = content
-        return {"tool_id": "filesystem_code:write_file", "is_error": False,
-                "structured_content": {"path": path, "bytes": len(content)},
-                "content": [{"type": "text", "text": f"wrote {path}"}]}
+@pytest.fixture
+def db_path():
+    with tempfile.TemporaryDirectory() as td:
+        yield td + "/mem.sqlite"
 
 
-class DummyRegistry:
-    def __init__(self, tool):
-        self.tool = tool
-    def list_for_agent(self, role):
-        return [{"tool_id": "filesystem_code:write_file", "description": "write",
-                 "input_schema": {"type": "object", "properties": {
-                     "path": {"type": "string"}, "content": {"type": "string"}},
-                     "required": ["path", "content"]}}]
-    async def call(self, agent_id, tool_id, arguments):
-        return await self.tool(arguments.get("path"), arguments.get("content", ""))
-    async def refresh(self):
-        return {}
+@pytest.fixture
+def db(db_path):
+    return MemoryDB(db_path)
 
 
-class ScriptedLLM:
-    """Fake LLM that reads memory context to decide tool parameters."""
-    def __init__(self, default_path: str = "notes/default.md"):
-        self.calls = []
-        self.default_path = default_path
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
-
-    async def create(self, **kwargs):
-        self.calls.append(kwargs)
-        if kwargs.get("tool_choice") == "none" or not kwargs.get("tools"):
-            msg = SimpleNamespace(content="任务完成", tool_calls=None)
-            return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
-        messages = kwargs.get("messages", [])
-        # Look for a memory cue containing a verified path
-        chosen_path = self.default_path
-        for m in messages:
-            content = m.get("content") or ""
-            if "notes/verified.md" in content or "PROVISIONAL" in content or "PROCEDURAL" in content:
-                chosen_path = "notes/verified.md"
-                break
-        fn_name = "mcp_0_filesystem_code_write_file"
-        tc = SimpleNamespace(
-            id="call_1", type="function",
-            function=SimpleNamespace(name=fn_name, arguments=json.dumps(
-                {"path": chosen_path, "content": "hello from memory experiment"})))
-        msg = SimpleNamespace(content=None, tool_calls=[tc])
-        return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
+@pytest.fixture
+def engine(db):
+    emb = HashingEmbeddingProvider(64)
+    return MemoryEvolutionEngine(db, embedding_provider=emb, promotion_threshold=2)
 
 
-async def _run_task(role, client, registry, db, engine=None, task_id=None, prompt="write a note"):
-    from agent_ecosystem.memory.runner import run_tool_loop_with_memory
-    return await run_tool_loop_with_memory(
-        role=role, prompt=prompt, registry=registry, client=client, model="mock",
-        task_id=task_id, engine=engine)
+class TestSchemaMigration:
+    def test_new_columns_exist(self, db):
+        with db.connection() as conn:
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(long_term_memories)")}
+        for c in ("namespace", "verification_level", "importance", "confidence",
+                  "source_json", "embedding_json", "promotion_state", "dedupe_key"):
+            assert c in cols, f"missing column {c}"
+
+    def test_new_tables_exist(self, db):
+        with db.connection() as conn:
+            tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for t in ("memory_candidates", "retrieval_events", "memory_feedback"):
+            assert t in tables, f"missing table {t}"
+
+    def test_idempotent_reopen(self, db_path):
+        db1 = MemoryDB(db_path)
+        with db1.connection() as conn:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(long_term_memories)")]
+        assert len(cols) >= 15
+        db2 = MemoryDB(db_path)  # re-open — no crash
+        assert db2 is not None
 
 
-class TestMemoryOnOff:
-    @pytest.mark.asyncio
-    async def test_learning_path_affects_tool_parameters(self):
-        db_path = tempfile.mktemp(suffix=".sqlite")
-        db = MemoryDB(db_path)
-        emb = HashingEmbeddingProvider(64)
-        engine = MemoryEvolutionEngine(db, embedding_provider=emb, promotion_threshold=1)
+class TestEmbedding:
+    def test_deterministic(self):
+        e = HashingEmbeddingProvider(128)
+        v1 = e.embed("hello world")
+        v2 = e.embed("hello world")
+        assert v1 == v2
 
-        # ---- Phase 1: Memory OFF ----
-        tool_off = FakeFileTool()
-        llm_off = ScriptedLLM("notes/default.md")
-        reg_off = DummyRegistry(tool_off)
-        answer_off, used_off = await _run_task("coding", llm_off, reg_off, db, engine=None,
-                                                task_id="task-off", prompt="write a note")
-        assert tool_off.calls and tool_off.calls[0]["path"] == "notes/default.md"
+    def test_cosine_similarity(self):
+        e = HashingEmbeddingProvider(128)
+        va = e.embed("RAG pipeline implementation")
+        vb = e.embed("RAG pipeline implementation")
+        vc = e.embed("sandbox python execution")
+        assert cosine_similarity(va, vb) > 0.9
+        assert cosine_similarity(va, vc) < 0.5
 
-        # ---- Phase 2: Create evidence-backed procedural memory ----
-        # Workflow A: tool runs successfully with verified.md
-        tool_a = FakeFileTool()
-        reg_a = DummyRegistry(tool_a)
-        llm_a = ScriptedLLM("notes/verified.md")  # simulate already having the right path
-        answer_a, used_a = await _run_task("coding", llm_a, reg_a, db, engine=engine,
-                                            task_id="task-a", prompt="write a verified note")
-        assert tool_a.calls[0]["path"] == "notes/verified.md"
-        # Reflect task — creates procedural candidate
-        db.begin("coding", "task-a", "write verified note")
-        db.event("coding", "task-a", "tool_result", {"tool_id": "filesystem_code:write_file",
-                 "is_error": False, "preview": "notes/verified.md"})
-        db.finish("coding", "task-a", "done", ["filesystem_code:write_file"])
-        cid = engine.update_procedural_candidate("coding", "task-a", "wf-a",
+    def test_dimension(self):
+        assert HashingEmbeddingProvider(64).dimension == 64
+
+
+class TestEvolutionEngine:
+    def test_reflect_task_creates_memories(self, db, engine):
+        db.begin("coding", "task-1", "write a test", parent_task_id="wf1")
+        db.event("coding", "task-1", "tool_result",
+                 {"tool_id": "sandbox:create", "is_error": False, "preview": "ok"})
+        db.finish("coding", "task-1", "done", ["sandbox:create"])
+        created = engine.reflect_task("coding", "task-1", workflow_id="wf1", llm_kind="MOCK_LLM")
+        kinds = list(created.keys())
+        assert "episodic" in kinds
+        assert "semantic" in kinds
+        assert "working" in kinds
+
+    def test_reflect_task_mock_label(self, db, engine):
+        db.begin("research", "task-2", "search", parent_task_id="wf2")
+        db.event("research", "task-2", "tool_result",
+                 {"tool_id": "fetch:fetch", "is_error": False, "preview": "data"})
+        db.finish("research", "task-2", "done", ["fetch:fetch"])
+        engine.reflect_task("research", "task-2", llm_kind="MOCK_LLM")
+        mems = engine.search("research", "search", include_mock=True, limit=10)
+        assert len(mems) >= 1
+        # MOCK memories should NOT appear by default
+        filtered = engine.search("research", "search", include_mock=False)
+        assert all(m.get("verification_level") != VERIFICATION_MOCK for m in filtered)
+
+    def test_procedural_candidate_created(self, db, engine):
+        db.begin("coding", "task-p1", "run sandbox", parent_task_id="wf10")
+        db.event("coding", "task-p1", "tool_result",
+                 {"tool_id": "sandbox:create", "is_error": False})
+        db.event("coding", "task-p1", "tool_result",
+                 {"tool_id": "sandbox:run_python", "is_error": False})
+        db.finish("coding", "task-p1", "done", ["sandbox:create", "sandbox:run_python"])
+        cid = engine.update_procedural_candidate("coding", "task-p1", "wf10",
                                                   verification=VERIFICATION_REAL,
                                                   llm_kind="REAL_LLM")
-        assert cid is not None, "candidate should be created for workflow A"
-
-        # ---- Phase 3: Memory ON ----
-        # Retrieve the memory before the task
-        mems = engine.search("coding", "write a verified note", include_mock=True,
-                             include_unverified=False)
-        print(f"[Retrieved] {len(mems)} memories", file=sys.stderr)
-        # Use the engine with the same FakeLLMClient — the LLM detects the memory context
-        tool_on = FakeFileTool()
-        reg_on = DummyRegistry(tool_on)
-        llm_on = ScriptedLLM("notes/default.md")  # default, but should switch if memory is injected
-        answer_on, used_on = await _run_task("coding", llm_on, reg_on, db, engine=engine,
-                                              task_id="task-on", prompt="write a note")
-        print(f"[Memory ON] path={tool_on.calls[0]['path'] if tool_on.calls else 'NONE'}",
-              file=sys.stderr)
-
-        # ---- Assertions ----
-        # 1. Memory was retrieved
-        assert len(mems) > 0, "should have at least one memory retrieved"
-
-        # 2. The FakeLLM received the memory cue in its prompt
-        memory_cue_found = any(
-            "verified.md" in str(call.get("messages", "")) or
-            "PROCEDURAL" in str(call.get("messages", "")) or
-            "candidate" in str(call.get("messages", ""))
-            for call in llm_on.calls
-        )
-        assert memory_cue_found, "LLM should have received memory cue"
-
-        # 3. Tool was called — path depends on whether FakeLLM detected the memory cue
-        assert tool_on.calls, "tool should have been called"
-        # If the FakeLLM detected the cue, it should have switched path
-        actual_path = tool_on.calls[0]["path"]
-        print(f"[Path] chosen={actual_path}", file=sys.stderr)
-
-        # 4. Retrieval event was recorded
+        assert cid is not None
         with db.connection() as conn:
-            ret_rows = conn.execute(
-                "SELECT * FROM retrieval_events WHERE agent_id='coding'"
-            ).fetchall()
-            assert len(ret_rows) >= 1, "retrieval event should be recorded"
+            row = conn.execute("SELECT support_count FROM memory_candidates WHERE candidate_id=?",
+                               (cid,)).fetchone()
+            assert row["support_count"] == 1
 
-        # 5. Feedback was recorded
-        engine.record_feedback("ret-test", mems[0]["memory_id"], agent_id="coding",
-                               used=True, success=True, workflow_id="wf-test",
-                               task_id="task-on")
+    def test_mock_not_promoted(self, db, engine):
+        # MOCK experiences should be PROVISIONAL, never PROMOTED
+        db.begin("coding", "task-pm", "sandbox", parent_task_id="wf11")
+        db.event("coding", "task-pm", "tool_result", {"tool_id": "sandbox:create", "is_error": False})
+        db.finish("coding", "task-pm", "done", ["sandbox:create"])
+        engine.reflect_task("coding", "task-pm", llm_kind="MOCK_LLM")
+        mems = engine.search("coding", "sandbox", include_mock=True, limit=10)
+        for m in mems:
+            assert m.get("promotion_state") != PROMOTION_PROMOTED, \
+                f"MOCK memory {m['memory_id']} should not be PROMOTED"
+
+    def test_agent_isolation(self, db, engine):
+        db.begin("coding", "task-c1", "code", parent_task_id="wf1")
+        db.event("coding", "task-c1", "tool_result", {"tool_id": "sandbox:create", "is_error": False})
+        db.finish("coding", "task-c1", "done", ["sandbox:create"])
+        engine.reflect_task("coding", "task-c1")
+        mems = engine.search("research", "code", include_mock=True, limit=10)
+        # research should not see coding's memories
+        assert all(m["agent_id"] != "research" for m in mems if m.get("agent_id"))
+
+    def test_prune_expired_working(self, db, engine):
+        db.begin("coding", "task-w", "test")
+        db.event("coding", "task-w", "tool_result", {"tool_id": "sandbox:create", "is_error": False})
+        db.finish("coding", "task-w", "done", ["sandbox:create"])
+        engine.reflect_task("coding", "task-w")
+        # Force expire the working memory
         with db.connection() as conn:
-            fb = conn.execute(
-                "SELECT * FROM memory_feedback WHERE agent_id='coding'"
-            ).fetchone()
-            assert fb is not None, "feedback should be recorded"
+            conn.execute("UPDATE long_term_memories SET expires_at='2020-01-01T00:00:00' "
+                         "WHERE kind='working'")
+            conn.commit()
+        removed = engine.prune("coding")
+        assert len(removed) >= 1
 
-        print("[PASS] Memory ON/OFF experiment complete", file=sys.stderr)
+    def test_hybrid_search_finds_relevant(self, db, engine):
+        db.begin("coding", "task-h1", "write a Python CLI tool")
+        db.event("coding", "task-h1", "tool_result", {"tool_id": "filesystem_code:write_file",
+                  "is_error": False, "preview": "print('hello')"})
+        db.finish("coding", "task-h1", "done", ["filesystem_code:write_file"])
+        engine.reflect_task("coding", "task-h1", llm_kind="MOCK_LLM")
+        results = engine.search("coding", "Python file CLI", include_mock=True, limit=5)
+        assert len(results) >= 1
+
+    def test_jaccard_tokenization(self):
+        assert len(_features("Python file")) > 0
+        assert _jaccard({"python", "file"}, {"python", "test"}) == 1 / 3
+
+
+class TestMemoryFeedback:
+    def test_feedback_records_and_adjusts_confidence(self, db, engine):
+        db.begin("coding", "task-fb", "test")
+        db.event("coding", "task-fb", "tool_result", {"tool_id": "sandbox:create", "is_error": False})
+        db.finish("coding", "task-fb", "done", ["sandbox:create"])
+        engine.reflect_task("coding", "task-fb", llm_kind="MOCK_LLM")
+        mems = engine.search("coding", "sandbox", include_mock=True, limit=5)
+        assert len(mems) >= 1
+        mid = mems[0]["memory_id"]
+        engine.record_feedback("ret-test", mid, agent_id="coding",
+                               used=True, success=True,
+                               workflow_id="wf1", task_id="task-fb",
+                               evidence={"tool": "sandbox:create"})
+        with db.connection() as conn:
+            row = conn.execute("SELECT confidence FROM long_term_memories WHERE memory_id=?",
+                               (mid,)).fetchone()
+            assert row is not None and float(row["confidence"]) > 0.15

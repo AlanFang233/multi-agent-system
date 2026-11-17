@@ -116,7 +116,7 @@ class ApprovalRepository:
                    summary, arguments_json, argument_digest, risk_level, reason,
                    details_json, status, decision, created_at, expires_at,
                    decided_at, decided_by, comment, consumed_at, metadata_json)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     req.approval_id, req.workflow_id, req.node_id, req.agent_id,
                     req.tool_id, req.action, req.summary,

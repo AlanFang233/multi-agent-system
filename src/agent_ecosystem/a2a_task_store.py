@@ -45,9 +45,9 @@ class SQLiteTaskStore:
 
     def save(self, task: Any, context: Any) -> None:
         """Persist an a2a Task proto."""
-        import a2a_pb2  # type: ignore[import-untyped]
-        if isinstance(task, a2a_pb2.Task):
-            payload = task.to_json()
+        from a2a.types import Task as A2ATask
+        if isinstance(task, A2ATask):
+            payload = A2ATask.to_json(task)
         else:
             payload = json.dumps(_safe_dict(task), ensure_ascii=False, default=str)
         task_id = str(getattr(task, "id", "") or "")

@@ -139,7 +139,7 @@ class GroupService:
     def start_agents(self, group_id: str, agents: list[GroupAgent],
                      base_port: int = 8100) -> list[GroupAgent]:
         """Spawn one A2A server process per agent on sequential ports."""
-        repo_root = Path(__file__).resolve().parents[2]
+        repo_root = Path(__file__).resolve().parents[3]
         venv_python = str(repo_root / ".venv" / "bin" / "python")
         started = []
         for i, agent in enumerate(agents):

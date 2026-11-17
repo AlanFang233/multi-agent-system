@@ -21,9 +21,28 @@ def build_client(tmp_path):
         dispatcher_factory=lambda wf: ScriptedDispatcher(delay=0.01),
         agent_cards=TEST_CARDS,
         provider_kind="mock",
+        approvals=_StubApprovals(),
+        clarifications=_StubClarifications(),
+        control=_StubControl(),
     )
     app = create_app(service=service)
     return app, service
+
+
+class _StubApprovals:
+    def list_all(self, *a, **kw): return []
+    def decide(self, *a, **kw): return None
+
+class _StubClarifications:
+    class repo:
+        @staticmethod
+        def list_open(*a, **kw): return []
+    def answer(self, *a, **kw): return None
+
+class _StubControl:
+    def pause(self, *a): pass
+    def resume(self, *a): pass
+    def cancel(self, *a): pass
 
 
 async def poll_until_terminal(client, wf_id, timeout=10.0):

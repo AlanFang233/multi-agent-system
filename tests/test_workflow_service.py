@@ -156,8 +156,10 @@ async def test_a2a_dispatcher_builds_metadata_and_collects_evidence(tmp_path, mo
     db, rid = seed_memory_db(tmp_path / "audit.sqlite")
     sent = []
 
-    async def fake_send(url, prompt, *, metadata=None, timeout=120.0):
+    async def fake_send(url, prompt, *, metadata=None, timeout=120.0, return_status=False):
         sent.append((url, prompt, metadata, timeout))
+        if return_status:
+            return "TASK_STATE_COMPLETED", "final text from agent"
         return "final text from agent"
 
     monkeypatch.setattr(service_module, "send_a2a_text", fake_send)
@@ -184,14 +186,14 @@ async def test_a2a_dispatcher_builds_metadata_and_collects_evidence(tmp_path, mo
 
 
 async def test_a2a_dispatcher_failure_classification(tmp_path, monkeypatch):
-    async def raise_connect(url, prompt, *, metadata=None, timeout=120.0):
+    async def raise_connect(url, prompt, *, metadata=None, timeout=120.0, return_status=False):
         raise httpx.ConnectError("connection refused")
 
-    async def raise_runtime(url, prompt, *, metadata=None, timeout=120.0):
+    async def raise_runtime(url, prompt, *, metadata=None, timeout=120.0, return_status=False):
         raise RuntimeError("下游任务尚未完成或执行失败: TASK_STATE_FAILED")
 
-    async def return_empty(url, prompt, *, metadata=None, timeout=120.0):
-        return "   "
+    async def return_empty(url, prompt, *, metadata=None, timeout=120.0, return_status=False):
+        return "TASK_STATE_COMPLETED", "   "
 
     wf = make_workflow()
     node = make_node(wf, "a")

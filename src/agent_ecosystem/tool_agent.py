@@ -331,8 +331,17 @@ async def ask_with_tools(
         force_tool: str | None = None,
         delegation_route: list[str] | None = None,
         delegation_trace_id: str | None = None,
+        task_id: str | None = None,
+        parent_task_id: str | None = None,
+        max_tool_calls: int | None = None,
     ) -> tuple[str, list[str]]:
-    """Entry point for an A2A AgentExecutor or a CLI smoke test."""
+    """Entry point for an A2A AgentExecutor or a CLI smoke test.
+
+    ``task_id`` is the workflow idempotency key when dispatched by the
+    Coordinator (x-workflow metadata); re-dispatching the same task_id returns
+    the persisted checkpoint instead of re-executing tools. ``max_tool_calls``
+    bounds the loop rounds for workflow-node budgets.
+    """
     
     from agent_ecosystem.tool_registry import ToolRegistry
     from agent_ecosystem.dynamic_delegation import AgentDelegationRegistry
@@ -359,6 +368,9 @@ async def ask_with_tools(
     if errors:
         print(f"[Registry 警告] 以下 Server 不可用: {errors}", file=sys.stderr)
     settings = ModelSettings()
+    max_rounds = 12
+    if isinstance(max_tool_calls, int) and max_tool_calls > 0:
+        max_rounds = max(1, min(max_tool_calls, 12))
     async with AsyncOpenAI(
         api_key=settings.openai_api_key,
         base_url=settings.openai_base_url,
@@ -371,7 +383,9 @@ async def ask_with_tools(
                 client=client,
                 model=settings.openai_model,
                 force_tool=force_tool,
-                max_rounds=12,
+                max_rounds=max_rounds,
+                task_id=task_id,
+                parent_task_id=parent_task_id,
                 config_path="config/memory.yaml",
             )
 

@@ -9,6 +9,7 @@ async def send_a2a_text(
         prompt: str,
         *,
         metadata: dict | None = None,
+        timeout: float = 120.0,
     ) -> str:
     """通过 A2A JSON-RPC 1.0 发送任务，返回文本 Artifact。"""
 
@@ -30,7 +31,7 @@ async def send_a2a_text(
         },
     }
 
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(
             url,
             json=payload,

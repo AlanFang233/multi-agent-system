@@ -81,6 +81,32 @@ PROMPTS = {
 }
 
 
+def _workflow_context(raw_metadata: dict) -> dict:
+    """Extract Phase 2 x-workflow fields; tolerant of absent/invalid data.
+
+    Returns a dict with optional keys task_id / parent_task_id / max_tool_calls.
+    Absent metadata keeps the legacy (pre-Phase 2) behavior untouched.
+    """
+    meta = raw_metadata.get("x-workflow", {})
+    if not isinstance(meta, dict):
+        return {}
+    out: dict = {}
+    task_id = meta.get("task_id")
+    if isinstance(task_id, str) and task_id:
+        out["task_id"] = task_id
+    parent = meta.get("parent_task_id")
+    if isinstance(parent, str) and parent:
+        out["parent_task_id"] = parent
+    budget = meta.get("budget")
+    if isinstance(budget, dict):
+        max_tools = budget.get("max_tool_calls")
+        # protobuf Struct round-trips integers as floats; accept integral values.
+        if isinstance(max_tools, (int, float)) and not isinstance(max_tools, bool):
+            if max_tools == int(max_tools) and max_tools > 0:
+                out["max_tool_calls"] = int(max_tools)
+    return out
+
+
 def _normalize_metadata(message) -> dict:
     """Return A2A message metadata as a plain dict.
 
@@ -126,6 +152,20 @@ class RoleExecutor(AgentExecutor):
 
         delegation_route = delegation_meta.get("route")
         delegation_trace_id = delegation_meta.get("trace_id")
+
+        # Phase 2 workflow context (backward compatible: absent -> legacy path).
+        wf_context = _workflow_context(raw_metadata)
+        wf_task_id = wf_context.get("task_id")
+        wf_parent = wf_context.get("parent_task_id")
+        wf_max_tools = wf_context.get("max_tool_calls")
+        if wf_task_id:
+            workflow_meta = raw_metadata.get("x-workflow") or {}
+            print(
+                f"[Workflow 节点] wf={workflow_meta.get('workflow_id')} "
+                f"node={workflow_meta.get('node_id')} attempt={workflow_meta.get('attempt')} "
+                f"task={wf_task_id}",
+                flush=True,
+            )
         settings = get_settings()
         try:
             if settings.openai_api_key:  
@@ -141,6 +181,9 @@ class RoleExecutor(AgentExecutor):
                                     prompt=prompt,
                                     delegation_route=delegation_route,
                                     delegation_trace_id=delegation_trace_id,
+                                    task_id=wf_task_id,
+                                    parent_task_id=wf_parent,
+                                    max_tool_calls=wf_max_tools,
                                 )
 
 

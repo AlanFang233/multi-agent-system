@@ -217,7 +217,38 @@ async def cmd_reject(aid: str):
     await _api("POST", f"/approvals/{aid}/decide", {"decision": "reject"})
     print(c("red", f"  ✗ Rejected {aid}"))
 
-async def cmd_clarify(cid: str, answer: str):
+async def cmd_group_create(group_id: str, group_name: str, scenario: str = "dev-team"):
+    roles = []
+    if scenario == "dev-team":
+        from agent_ecosystem.orchestration.group_service import SCENARIO_1_ROLES
+        roles = list(SCENARIO_1_ROLES)
+    body = {"group_id": group_id, "group_name": group_name, "agents": roles}
+    result = await _api("POST", "/groups", body)
+    print(c("green", f"Group created: {group_id} ({len(roles)} roles)"))
+    for r in roles:
+        print(f"  [{c('cyan', r['agent_id'])}] {r['role_name']}")
+
+async def cmd_group_activate(group_id: str):
+    result = await _api("POST", f"/groups/{group_id}/activate")
+    agents = result.get("agents", {})
+    print(c("green", f"Group {group_id} activated"))
+    for aid, url in sorted(agents.items()):
+        print(f"  [{c('cyan', aid)}] {url}")
+
+async def cmd_group_message(group_id: str, goal: str):
+    result = await _api("POST", f"/groups/{group_id}/messages", {"goal": goal})
+    wf_id = result.get("workflow_id", "")
+    print(f"Message sent to group {group_id}")
+    print(f"Workflow: {c('cyan', wf_id)}")
+    print(f"Monitor: {c('dim', f'python -m agent_ecosystem.cli status {wf_id}')}")
+
+async def cmd_group_show(group_id: str):
+    result = await _api("GET", f"/groups/{group_id}")
+    print(c("bold", f"Group: {result.get('group_name', '?')} ({group_id})"))
+    for a in result.get("agents", []):
+        print(f"  [{c('cyan', a['agent_id'])}] {a['role_name']} "
+              f"caps={a.get('capabilities',[])} port={a.get('port')}")
+    print(f"  Workflows: {result.get('workflow_ids', [])}")
     await _api("POST", f"/clarifications/{cid}/answer", {"answer": answer})
     print(c("green", f"  ✓ Answered {cid}"))
 
@@ -248,6 +279,22 @@ def main():
     clarify_p.add_argument("answer")
     sub.add_parser("dashboard", help="Open dashboard URL")
 
+    # Group commands
+    group_p = sub.add_parser("group-create", help="Create a new agent group")
+    group_p.add_argument("group_id")
+    group_p.add_argument("group_name")
+    group_p.add_argument("--scenario", choices=["dev-team"], default="dev-team")
+    grp_msg = sub.add_parser("group-message", help="Send a message to a group")
+    grp_msg.add_argument("group_id")
+    grp_msg.add_argument("goal")
+    sub.add_parser("groups", help="List all groups")
+    group_show = sub.add_parser("group-show", help="Show group details")
+    group_show.add_argument("group_id")
+    group_activate = sub.add_parser("group-activate", help="Activate a group (start agents)")
+    group_activate.add_argument("group_id")
+    group_stop = sub.add_parser("group-stop", help="Stop a group's agents")
+    group_stop.add_argument("group_id")
+
     args = p.parse_args()
     loop = asyncio.get_event_loop()
 
@@ -265,6 +312,20 @@ def main():
         loop.run_until_complete(cmd_clarify(args.clarification_id, args.answer))
     elif args.cmd == "dashboard":
         print(f"Dashboard: {COORD}/dashboard")
+    elif args.cmd == "group-create":
+        loop.run_until_complete(cmd_group_create(args.group_id, args.group_name, args.scenario))
+    elif args.cmd == "group-activate":
+        loop.run_until_complete(cmd_group_activate(args.group_id))
+    elif args.cmd == "group-message":
+        loop.run_until_complete(cmd_group_message(args.group_id, args.goal))
+    elif args.cmd == "groups":
+        loop.run_until_complete(_cmd_groups())
+    elif args.cmd == "group-show":
+        loop.run_until_complete(cmd_group_show(args.group_id))
+    elif args.cmd == "group-stop":
+        from agent_ecosystem.orchestration.group_service import GroupService
+        GroupService().stop_agents(args.group_id)
+        print(f"Group {args.group_id} deactivated")
     else:
         p.print_help()
 

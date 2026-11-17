@@ -335,6 +335,7 @@ async def ask_with_tools(
         parent_task_id: str | None = None,
         max_tool_calls: int | None = None,
         approval_id: str | None = None,
+        system_prompt_override: str | None = None,
     ) -> tuple[str, list[str]]:
     """Entry point for an A2A AgentExecutor or a CLI smoke test.
 
@@ -388,6 +389,7 @@ async def ask_with_tools(
                 task_id=task_id,
                 parent_task_id=parent_task_id,
                 approval_id=approval_id,
+                system_prompt_override=system_prompt_override,
                 config_path="config/memory.yaml",
             )
 

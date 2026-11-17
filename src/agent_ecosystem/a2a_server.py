@@ -132,8 +132,9 @@ def _normalize_metadata(message) -> dict:
 
 
 class RoleExecutor(AgentExecutor):
-    def __init__(self, role: str):
+    def __init__(self, role: str, *, role_prompt_override: str | None = None):
         self.role = role
+        self.role_prompt_override = role_prompt_override
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.current_task:
@@ -190,6 +191,7 @@ class RoleExecutor(AgentExecutor):
                                     parent_task_id=wf_parent,
                                     max_tool_calls=wf_max_tools,
                                     approval_id=wf_approval_id,
+                                    system_prompt_override=self.role_prompt_override,
                                 )
 
 
@@ -218,7 +220,7 @@ class RoleExecutor(AgentExecutor):
         raise NotImplementedError("Cancellation is not implemented in the starter")
 
 
-def create_app(role: str, advertised_url: str) -> Starlette:
+def create_app(role: str, advertised_url: str, *, role_prompt_override: str | None = None) -> Starlette:
     card = AgentCard(
         name=f"{role.title()} Agent",
         description=f"Local {role} agent; initial A2A demonstration",
@@ -243,7 +245,7 @@ def create_app(role: str, advertised_url: str) -> Starlette:
         ],
     )
     handler = DefaultRequestHandler(
-        agent_executor=RoleExecutor(role),
+        agent_executor=RoleExecutor(role, role_prompt_override=role_prompt_override),
         task_store=InMemoryTaskStore(),
         agent_card=card,
     )
@@ -261,17 +263,40 @@ def create_app(role: str, advertised_url: str) -> Starlette:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--name", choices=list(PROMPTS), required=True)
+    parser.add_argument("--name", choices=list(PROMPTS), required=False)
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--group-id", default=None)
+    parser.add_argument("--role-name", default=None)
     args = parser.parse_args()
+
+    # Dynamic group agent: load role config from orchestration DB
+    role = args.name or (args.role_name or "research")
+    role_prompt_override = None
+    if args.group_id and args.role_name:
+        try:
+            from agent_ecosystem.orchestration.group_service import GroupService
+            gs = GroupService()
+            group = gs.get_group(args.group_id)
+            if group:
+                for a in group.agents:
+                    if a.agent_id == args.role_name:
+                        role_prompt_override = a.role_prompt
+                        role = args.role_name
+                        print(f"[Group Agent] {role} loaded from group {args.group_id}",
+                              flush=True)
+                        break
+        except Exception as e:
+            print(f"[Group Agent] WARNING: could not load group config: {e}", flush=True)
+
     settings = get_settings()
     urls = {
         "research": settings.research_agent_url,
         "coding": settings.coding_agent_url,
         "analysis": settings.analysis_agent_url,
     }
-    app = create_app(args.name, urls[args.name])
+    advertised = urls.get(role, f"http://{args.host}:{args.port}")
+    app = create_app(role, advertised, role_prompt_override=role_prompt_override)
     uvicorn.run(app, host=args.host, port=args.port)
 
 

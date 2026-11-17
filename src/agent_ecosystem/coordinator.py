@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 from typing import Any
 
 import httpx
@@ -271,6 +272,109 @@ def create_app(service: Any = None) -> FastAPI:
             # Transition back to PENDING so the scheduler picks it up
             # (the scheduler's main loop will re-launch it)
         return {"clarification_id": req.clarification_id, "status": req.status}
+
+    # ── Phase 5: Dynamic Groups ────────────────────────────────────────
+
+    @app.post("/groups")
+    async def create_group(request: Request):
+        body = await request.json()
+        svc = get_service()
+        group_id = body.get("group_id", "")
+        group_name = body.get("group_name", "")
+        agents_data = body.get("agents", [])
+        if not group_id or not group_name:
+            return JSONResponse({"error": "group_id and group_name required"}, status_code=422)
+        from agent_ecosystem.orchestration.group_service import GroupService
+        gs = GroupService()
+        gs.create_group(group_id, group_name, agents_data)
+        return {"group_id": group_id, "status": "created", "agents": len(agents_data)}
+
+    @app.post("/groups/{group_id}/activate")
+    async def activate_group(group_id: str):
+        svc = get_service()
+        from agent_ecosystem.orchestration.group_service import GroupService, GroupAgent
+        gs = GroupService()
+        group = gs.get_group(group_id)
+        if group is None:
+            return JSONResponse({"error": "unknown group"}, status_code=404)
+        # Build agent objects from persisted config
+        with gs._connect() as conn:
+            rows = conn.execute(
+                "SELECT agent_id, role_name, role_prompt, capabilities_json FROM group_agents "
+                "WHERE group_id=?", (group_id,)
+            ).fetchall()
+        if rows:
+            # Already activated — just return URLs
+            urls = gs.get_agent_urls(group_id)
+            if urls:
+                return {"group_id": group_id, "status": "active", "agents": urls}
+        # First activation: start agent processes
+        agents_data = json.loads(
+            gs._connect().execute("SELECT agents_json FROM groups WHERE group_id=?", (group_id,)
+            ).fetchone()["agents_json"])
+        agents = [
+            GroupAgent(agent_id=a["agent_id"], role_name=a["role_name"],
+                       role_prompt=a["role_prompt"], capabilities=a.get("capabilities", []))
+            for a in agents_data
+        ]
+        started = gs.start_agents(group_id, agents, base_port=8100)
+        urls = {a.agent_id: f"http://127.0.0.1:{a.port}" for a in started}
+        return {"group_id": group_id, "status": "active", "agents": urls}
+
+    @app.get("/groups")
+    async def list_groups():
+        from agent_ecosystem.orchestration.group_service import GroupService
+        gs = GroupService()
+        groups = gs.list_groups()
+        return [{"group_id": g.group_id, "group_name": g.group_name,
+                 "agent_count": len(g.agents), "created_at": g.created_at} for g in groups]
+
+    @app.get("/groups/{group_id}")
+    async def get_group(group_id: str):
+        from agent_ecosystem.orchestration.group_service import GroupService
+        gs = GroupService()
+        group = gs.get_group(group_id)
+        if group is None:
+            return JSONResponse({"error": "unknown group"}, status_code=404)
+        urls = gs.get_agent_urls(group_id)
+        return {
+            "group_id": group.group_id, "group_name": group.group_name,
+            "agents": [{"agent_id": a.agent_id, "role_name": a.role_name,
+                        "capabilities": a.capabilities, "port": a.port}
+                       for a in group.agents],
+            "agent_urls": urls,
+            "workflow_ids": group.workflow_ids,
+            "created_at": group.created_at,
+        }
+
+    @app.post("/groups/{group_id}/messages")
+    async def group_message(group_id: str, request: Request):
+        body = await request.json()
+        goal = body.get("goal", "")
+        if not goal:
+            return JSONResponse({"error": "goal required"}, status_code=422)
+        svc = get_service()
+        from agent_ecosystem.orchestration.group_service import GroupService
+        gs = GroupService()
+        group = gs.get_group(group_id)
+        if group is None:
+            return JSONResponse({"error": "unknown group"}, status_code=404)
+        # Submit a workflow through the existing Coordinator path
+        workflow = svc.create_workflow(goal)
+        workflow.metadata["group_id"] = group_id
+        svc.store.save_workflow(workflow)
+        task = asyncio.create_task(svc.run_workflow(workflow))
+        app.state.background_tasks.add(task)
+        task.add_done_callback(app.state.background_tasks.discard)
+        gs.add_workflow(group_id, workflow.workflow_id)
+        return {"group_id": group_id, "workflow_id": workflow.workflow_id, "status": "submitted"}
+
+    @app.delete("/groups/{group_id}")
+    async def deactivate_group(group_id: str):
+        from agent_ecosystem.orchestration.group_service import GroupService
+        gs = GroupService()
+        gs.stop_agents(group_id)
+        return {"group_id": group_id, "status": "deactivated"}
 
     # ── Dashboard ───────────────────────────────────────────────────────
 

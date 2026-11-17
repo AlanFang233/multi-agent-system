@@ -11,10 +11,16 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 RESULTS: list[tuple[bool, str]] = []
+
+# The Phase 1 docs describe the main project as of this commit; later phases
+# legitimately grow those files, so main-project snapshot claims are verified
+# against the baseline commit (via git show), not the working tree.
+BASELINE_COMMIT = "95d56ea"
 
 
 def check(ok: bool, label: str) -> None:
@@ -30,6 +36,24 @@ def count_py_lines(root: Path) -> tuple[int, int]:
 
 def wc(path: Path) -> int:
     return len(path.read_text(encoding="utf-8", errors="replace").splitlines())
+
+
+def wc_at_commit(repo: Path, rel: str, commit: str = BASELINE_COMMIT) -> int:
+    out = subprocess.run(
+        ["git", "-C", str(repo), "show", f"{commit}:{rel}"],
+        capture_output=True,
+    )
+    if out.returncode != 0:
+        return -1
+    return len(out.stdout.decode("utf-8", errors="replace").splitlines())
+
+
+def py_files_at_commit(repo: Path, prefix: str, commit: str = BASELINE_COMMIT) -> list[str]:
+    out = subprocess.run(
+        ["git", "-C", str(repo), "ls-tree", "-r", "--name-only", commit, prefix],
+        capture_output=True, text=True,
+    )
+    return [ln for ln in out.stdout.splitlines() if ln.endswith(".py")]
 
 
 def main() -> int:
@@ -152,7 +176,6 @@ def main() -> int:
 
     # approvals 21 columns / clarifications 14 columns
     m = re.search(r"CREATE TABLE IF NOT EXISTS approvals \((.*?)\);", db_text, re.S)
-    cols = [c for c in re.findall(r"^\s*(\w+) TEXT|^\s*(\w+) INTEGER|^\s*(\w+) REAL", m.group(1), re.M)] if m else []
     appr_cols = len([ln for ln in m.group(1).splitlines() if ln.strip() and not ln.strip().startswith(("PRIMARY", ")"))]) if m else 0
     check(appr_cols == 21, f"approvals table = 21 columns (actual {appr_cols})")
     m2 = re.search(r"CREATE TABLE IF NOT EXISTS clarifications \((.*?)\);", db_text, re.S)
@@ -174,19 +197,18 @@ def main() -> int:
         "src/agent_ecosystem/a2a_delegate.py": 90,
     }
     for rel, want in cited_mp.items():
-        p = mp / rel
-        ok = p.exists() and wc(p) == want
-        actual = wc(p) if p.exists() else "MISSING"
-        check(ok, f"MP {rel} = {want} lines (actual {actual})")
-    # a2a_server/tool_registry grew in Phase 0; assert current post-fix sizes
+        actual = wc_at_commit(mp, rel)
+        check(actual == want, f"MP {rel} = {want} lines @ {BASELINE_COMMIT} (actual {actual})")
+    # a2a_server/tool_registry grew in Phase 0; assert baseline post-fix sizes
     for rel, want in {"src/agent_ecosystem/a2a_server.py": 220, "src/agent_ecosystem/tool_registry.py": 122}.items():
-        actual = wc(mp / rel)
-        check(abs(actual - want) <= 2, f"MP {rel} ≈ {want} lines (actual {actual})")
+        actual = wc_at_commit(mp, rel)
+        check(abs(actual - want) <= 2, f"MP {rel} ≈ {want} lines @ {BASELINE_COMMIT} (actual {actual})")
 
-    src_files = [p for p in (mp / "src").rglob("*.py") if "__pycache__" not in p.parts]
-    src_lines = sum(wc(p) for p in src_files)
+    src_files = py_files_at_commit(mp, "src")
+    src_lines = sum(wc_at_commit(mp, rel) for rel in src_files)
     check(len(src_files) == 22 and 2400 <= src_lines <= 2650,
-          f"MP src = 22 py files, ~2.5k lines (actual {len(src_files)}/{src_lines})")
+          f"MP src = 22 py files, ~2.5k lines @ {BASELINE_COMMIT} "
+          f"(actual {len(src_files)}/{src_lines})")
 
     failed = [label for ok, label in RESULTS if not ok]
     print(f"\n==== {len(RESULTS) - len(failed)}/{len(RESULTS)} checks passed ====")

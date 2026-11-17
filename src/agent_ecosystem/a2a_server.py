@@ -11,6 +11,7 @@ from a2a.server.events import EventQueue
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
+from agent_ecosystem.a2a_task_store import SQLiteTaskStore
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill, TaskState
 from openai import AsyncOpenAI
 from starlette.applications import Starlette
@@ -20,6 +21,7 @@ from starlette.routing import Route
 from agent_ecosystem.settings import get_settings
 from agent_ecosystem.tool_agent import ask_with_tools
 from agent_ecosystem.a2a_delegate import delegate_to_coding
+from agent_ecosystem.orchestration.suspension import WorkflowSuspension
 
 
 PROMPTS = {
@@ -193,6 +195,16 @@ class RoleExecutor(AgentExecutor):
                 parts=[new_text_part(text=answer, media_type="text/plain")]
             )
             await updater.update_status(state=TaskState.TASK_STATE_COMPLETED)
+        except WorkflowSuspension as suspension:
+            # Phase 3: high-risk tool needs human approval
+            import json as _json
+            payload = _json.dumps({"suspend": suspension.kind, **suspension.details},
+                                  ensure_ascii=False, default=str)
+            await updater.add_artifact(
+                parts=[new_text_part(text=payload, media_type="application/json")]
+            )
+            await updater.update_status(state=TaskState.TASK_STATE_INPUT_REQUIRED)
+            print(f"[HITL] {suspension.kind}: {suspension.reason}", flush=True)
         except Exception:
             # In production: record structured error details privately and persist retry status.
             await updater.update_status(state=TaskState.TASK_STATE_FAILED)
@@ -228,7 +240,7 @@ def create_app(role: str, advertised_url: str) -> Starlette:
     )
     handler = DefaultRequestHandler(
         agent_executor=RoleExecutor(role),
-        task_store=InMemoryTaskStore(),
+        task_store=SQLiteTaskStore("data/orchestration.sqlite"),
         agent_card=card,
     )
     async def health(_):

@@ -115,6 +115,7 @@ async def run_tool_loop_with_memory(
     if role not in SYSTEM_PROMPTS:
         raise ValueError(f"unknown agent role {role}")
     conf=_load_settings(config_path)
+    conf.setdefault("orchestration_database", "data/orchestration.sqlite")
     db=MemoryDB(conf.get("database","data/agent_memory.sqlite"))
     task_id=task_id or uuid4().hex
     prior=db.begin(role,task_id,prompt,parent_task_id)
@@ -205,6 +206,38 @@ async def run_tool_loop_with_memory(
                     arguments=json.loads(tc.function.arguments)
                     if not isinstance(arguments,dict):
                         raise ValueError("Tool arguments must be a JSON object")
+                    # Phase 3: high-risk tool approval gate (workflow-node mode only)
+                    if task_id and ":" in (task_id or "") and tool_id:
+                        from agent_ecosystem.orchestration.tool_policy import (
+                            create_approval, is_high_risk,
+                        )
+                        from agent_ecosystem.orchestration.suspension import WorkflowSuspension
+                        if is_high_risk(tool_id):
+                            parts = task_id.split(":")
+                            wf_id = parts[0]
+                            node_id = parts[1] if len(parts) >= 2 else ""
+                            db_path = conf.get("orchestration_database", "data/orchestration.sqlite")
+                            approval_id = conf.get("_approval_token")
+                            if approval_id:
+                                from agent_ecosystem.orchestration.tool_policy import check_and_consume_approval
+                                status = check_and_consume_approval(
+                                    db_path, approval_id=approval_id, tool_id=tool_id,
+                                    arguments=arguments, workflow_id=wf_id,
+                                    node_id=node_id, agent_id=role,
+                                )
+                                if status != "approved":
+                                    raise PermissionError(f"Approval {status} for {tool_id}")
+                            else:
+                                aid = create_approval(
+                                    db_path, workflow_id=wf_id, node_id=node_id,
+                                    agent_id=role, tool_id=tool_id, arguments=arguments,
+                                )
+                                raise WorkflowSuspension(
+                                    "approval", reason=f"approval required for {tool_id}",
+                                    details={"approval_id": aid, "tool_id": tool_id,
+                                             "workflow_id": wf_id, "node_id": node_id,
+                                             "agent_id": role},
+                                )
                     result=await asyncio.wait_for(
                         overlay.call(agent_id=role,tool_id=tool_id,arguments=arguments),
                         timeout=240 if tool_id=="a2a:delegate_task" else 60)

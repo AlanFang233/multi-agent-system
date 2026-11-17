@@ -10,8 +10,13 @@ async def send_a2a_text(
         *,
         metadata: dict | None = None,
         timeout: float = 120.0,
+        return_status: bool = False,
     ) -> str:
-    """通过 A2A JSON-RPC 1.0 发送任务，返回文本 Artifact。"""
+    """通过 A2A JSON-RPC 1.0 发送任务，返回文本 Artifact。
+
+    When ``return_status`` is True the return type is ``tuple[str, str]``
+    (state, text) so callers can detect INPUT_REQUIRED without an exception.
+    """
 
     payload = {
         "jsonrpc": "2.0",
@@ -55,6 +60,9 @@ async def send_a2a_text(
         )
 
         if state not in ("TASK_STATE_COMPLETED", "completed"):
+            if return_status:
+                parts_text = "\n".join(parts) if parts else ""
+                return state, parts_text
             raise RuntimeError(
                 f"下游任务尚未完成或执行失败: {state}"
             )
@@ -74,9 +82,14 @@ async def send_a2a_text(
         ]
 
     if not parts:
+        if return_status:
+            return state, ""
         raise RuntimeError("A2A 未返回文本结果")
 
-    return "\n".join(parts)
+    text = "\n".join(parts)
+    if return_status:
+        return state, text
+    return text
 
 
 async def delegate_to_coding(prompt: str) -> str:

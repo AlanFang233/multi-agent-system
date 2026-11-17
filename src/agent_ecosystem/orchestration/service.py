@@ -560,7 +560,11 @@ class WorkflowService:
     def _emit(self, workflow: Workflow, event_type: str, payload: dict[str, Any]) -> None:
         self.store.append_event(workflow.workflow_id, event_type, payload=payload)
         if self.events is not None:
-            self.events.event(event_type, workflow_id=workflow.workflow_id, **payload)
+            # Scheduler callbacks already include workflow_id in payload;
+            # avoid 'got multiple values' on the EventLogger.event(**payload).
+            event_payload = dict(payload)
+            event_payload.setdefault("workflow_id", workflow.workflow_id)
+            self.events.event(event_type, **event_payload)
 
 
 def build_default_service(

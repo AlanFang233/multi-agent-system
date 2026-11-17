@@ -11,7 +11,6 @@ from a2a.server.events import EventQueue
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
-from agent_ecosystem.a2a_task_store import SQLiteTaskStore
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill, TaskState
 from openai import AsyncOpenAI
 from starlette.applications import Starlette
@@ -245,7 +244,7 @@ def create_app(role: str, advertised_url: str) -> Starlette:
     )
     handler = DefaultRequestHandler(
         agent_executor=RoleExecutor(role),
-        task_store=SQLiteTaskStore("data/orchestration.sqlite"),
+        task_store=InMemoryTaskStore(),
         agent_card=card,
     )
     async def health(_):

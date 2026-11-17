@@ -43,7 +43,7 @@ class SQLiteTaskStore:
 
     # -- TaskStore protocol ---------------------------------------------------
 
-    def save(self, task: Any, context: Any) -> None:
+    async def save(self, task: Any, context: Any) -> None:
         """Persist an a2a Task proto."""
         from a2a.types import Task as A2ATask
         if isinstance(task, A2ATask):
@@ -68,7 +68,7 @@ class SQLiteTaskStore:
             )
             conn.commit()
 
-    def get(self, task_id: str) -> Any | None:
+    async def get(self, task_id: str, *args: Any, **kwargs: Any) -> Any | None:
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT payload_json, state FROM a2a_tasks WHERE task_id=?", (task_id,)
@@ -78,12 +78,12 @@ class SQLiteTaskStore:
         return _DictTask(task_id=task_id, state=row["state"],
                          payload_raw=row["payload_json"])
 
-    def delete(self, task_id: str) -> None:
+    async def delete(self, task_id: str) -> None:
         with self._lock, self._connect() as conn:
             conn.execute("DELETE FROM a2a_tasks WHERE task_id=?", (task_id,))
             conn.commit()
 
-    def list(self, context: Any) -> list[Any]:
+    async def list(self, context: Any) -> list[Any]:
         agent = str(getattr(context, "agent", "") or "")
         with self._connect() as conn:
             if agent:
@@ -114,6 +114,10 @@ class _DictTask:
         self.artifacts = payload.get("artifacts", [])
         self.metadata = payload.get("metadata", {})
         self.history = payload.get("history", [])
+        self._raw = payload
+
+    def to_json(self) -> str:
+        return json.dumps(self._raw, ensure_ascii=False)
 
 
 class _DictStatus:

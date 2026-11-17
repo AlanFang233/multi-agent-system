@@ -104,6 +104,7 @@ async def run_tool_loop_with_memory(
     force_tool: str | None = None, max_rounds: int = 12,
     task_id: str | None = None, parent_task_id: str | None = None,
     approval_id: str | None = None,
+    engine: Any = None,
     config_path: str | Path | None = "config/memory.yaml",
 ) -> tuple[str,list[str]]:
     """Run with bounded history, per-task durable checkpoint and verified memories.
@@ -147,7 +148,6 @@ async def run_tool_loop_with_memory(
     else:
         memories=db.search(role,prompt,limit=memory_limit)
         # Phase 4: optionally use the Evolution Engine for hybrid retrieval
-        engine = globals().get("_evolution_engine")
         if engine is not None:
             try:
                 memories = engine.search(role, prompt, limit=memory_limit,
@@ -195,9 +195,9 @@ async def run_tool_loop_with_memory(
                 db.event(role,task_id,"task_completed",{"used_tools":executed,"answer_preview":answer[:300]})
                 reflect(db,role,task_id)
                 # Phase 4: evolution engine
-                engine = globals().get("_evolution_engine")
                 if engine is not None:
                     try:
+                        from agent_ecosystem.memory.evolution import VERIFICATION_MOCK
                         engine.reflect_task(role, task_id, llm_kind="MOCK_LLM")
                         engine.update_procedural_candidate(role, task_id, workflow_id="",
                                                            verification=VERIFICATION_MOCK,

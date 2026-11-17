@@ -1,0 +1,28 @@
+# Coordinator DAG orchestration settings (Phase 2).
+# Defaults mirror the AgentForge safety limits audited in
+# docs/PHASE1_ARCHITECTURE_AUDIT.md §2.2; every magic number has an exit here.
+
+# Planner / plan validation
+max_subtasks: 8            # LLM plan size cap (validate_plan)
+max_nodes: 12              # materialized nodes incl. governance synthesis
+max_depth: 6               # longest dependency chain allowed
+planner_output_mode: auto  # auto | function | json | text
+structured_output_repairs: 1
+
+# Scheduler
+max_concurrency: 3         # parallel A2A node executions
+node_timeout_seconds: 300  # per-dispatch wall clock
+deadline_seconds: 900      # whole-workflow wall clock
+max_node_retries: 1        # same agent, SAME task_id (idempotent re-dispatch)
+max_reassignments: 1       # switch to another fully-capable agent
+max_a2a_calls: 24          # total dispatch budget per workflow
+node_tool_budget: 12       # per-node tool/round budget passed to agents
+
+# Governance node
+synthesis_enabled: true
+synthesis_capability: evidence_synthesis   # must exist in agent_registry.yaml
+
+# Data
+events_file: data/events.jsonl
+memory_database: data/agent_memory.sqlite
+agent_registry: config/agent_registry.yaml

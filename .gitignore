@@ -80,3 +80,6 @@ agent_*_addon*.zip
 Thumbs.db
 *~
 *.swp
+
+# Teacher course material: local provenance only, never committed
+artifacts/mid_test_local/teacher_source/

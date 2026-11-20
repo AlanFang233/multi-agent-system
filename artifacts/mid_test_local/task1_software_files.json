@@ -1,0 +1,13 @@
+{
+  "workspaces": [
+    "/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149"
+  ],
+  "copied": [
+    "task1_software/258c8916685642f3a261281a8ffde149/FIX_REPORT.md",
+    "task1_software/258c8916685642f3a261281a8ffde149/boundary_test.py",
+    "task1_software/258c8916685642f3a261281a8ffde149/README.md",
+    "task1_software/258c8916685642f3a261281a8ffde149/demo.py",
+    "task1_software/258c8916685642f3a261281a8ffde149/main.py",
+    "task1_software/258c8916685642f3a261281a8ffde149/checks.py"
+  ]
+}

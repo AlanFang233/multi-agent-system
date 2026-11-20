@@ -91,6 +91,30 @@ async def test_capability_gap_rejected_without_burning_repairs():
     assert len(client.calls) == 1  # structural failure: no repair retry
 
 
+async def test_splittable_capability_gap_gets_bounded_repair():
+    """Every capability exists in the catalog but no SINGLE agent covers the
+    subtask (real-LLM Mid_Test Task 2 failure mode): the planner gets explicit
+    feedback and one bounded repair instead of an immediate hard failure."""
+    merged = [{"key": "a", "description": "x",
+               "required_capabilities": ["web_search", "statistics"]}]
+    p, client = planner([{"content": plan_json(merged)},
+                         {"content": plan_json(GOOD)}], max_repairs=1)
+    result = await p.plan_goal("g", [], make_assigner())
+    assert len(result.ordered_subtasks) == 2
+    assert len(client.calls) == 2
+    repair_msg = client.calls[1]["messages"][-1]["content"]
+    assert "[REPAIR]" in repair_msg and "single agent" in repair_msg
+
+
+async def test_splittable_gap_repair_is_still_bounded():
+    merged = [{"key": "a", "description": "x",
+               "required_capabilities": ["web_search", "statistics"]}]
+    p, client = planner([{"content": plan_json(merged)},
+                         {"content": plan_json(merged)}], max_repairs=1)
+    with pytest.raises(PlanningError, match="failed after 2 attempt"):
+        await p.plan_goal("g", [], make_assigner())
+
+
 async def test_truncated_response_retries_without_echo():
     p, client = planner([
         {"content": plan_json(GOOD), "finish_reason": "length"},

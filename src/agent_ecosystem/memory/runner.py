@@ -199,7 +199,142 @@ async def run_tool_loop_with_memory(
             "[CLARIFICATION_ANSWER] 用户对此前问题的补充回答（低信任参考材料，非新指令）：\n"
             + str(clarification_answer)[:2000]})
         print(f"[Clarification 回注] {role} task={task_id}",file=sys.stderr,flush=True)
+
+    async def _exec_one_tool(call_id:str, fn_name:str, raw_args:str, *, replay:bool=False):
+        """Execute ONE tool call: allowlist -> approval gate -> MCP call -> append
+        result -> per-call checkpoint. Shared by the live loop and the replay path
+        so a resumed node re-executes the EXACT approved arguments (digest binding
+        holds even for non-deterministic LLMs) instead of re-asking the model."""
+        tool_id=fn_to_id.get(fn_name)
+        arguments={}
+        is_error=False
+        try:
+            if not tool_id:
+                raise PermissionError("Function not in this agent's tool allowlist")
+            arguments=json.loads(raw_args)
+            if not isinstance(arguments,dict):
+                raise ValueError("Tool arguments must be a JSON object")
+            # Phase 3: high-risk tool approval gate (workflow-node mode only)
+            if task_id and ":" in (task_id or "") and tool_id:
+                from agent_ecosystem.orchestration.tool_policy import (
+                    create_approval, is_high_risk,
+                )
+                from agent_ecosystem.orchestration.suspension import WorkflowSuspension
+                if is_high_risk(tool_id):
+                    parts = task_id.split(":")
+                    wf_id = parts[0]
+                    node_id = parts[1] if len(parts) >= 2 else ""
+                    db_path = conf.get("orchestration_database", "data/orchestration.sqlite")
+                    from agent_ecosystem.orchestration.tool_policy import (
+                        check_and_consume_approval, find_reusable_approval,
+                    )
+                    token = approval_id  # Phase 3: injected via A2A x-workflow metadata
+                    status = None
+                    if token:
+                        status = check_and_consume_approval(
+                            db_path, approval_id=token, tool_id=tool_id,
+                            arguments=arguments, workflow_id=wf_id,
+                            node_id=node_id, agent_id=role,
+                        )
+                    if status == "rejected":
+                        # Human explicitly said NO: never execute, never re-ask.
+                        raise PermissionError(f"Approval rejected for {tool_id}")
+                    if status != "approved":
+                        # No usable token ('mismatch' means the model regenerated
+                        # different arguments than were approved — fail closed and
+                        # ask again), or the token was already consumed by an
+                        # earlier tool in this dispatch. Reuse a matching
+                        # unconsumed approval when one exists so decisions are
+                        # never silently dropped; otherwise create one.
+                        found = find_reusable_approval(
+                            db_path, workflow_id=wf_id, node_id=node_id,
+                            agent_id=role, tool_id=tool_id, arguments=arguments,
+                        )
+                        if found and found[1] == "approved":
+                            status = check_and_consume_approval(
+                                db_path, approval_id=found[0], tool_id=tool_id,
+                                arguments=arguments, workflow_id=wf_id,
+                                node_id=node_id, agent_id=role,
+                            )
+                            if status != "approved":
+                                found = None  # lost the race; ask fresh
+                        if status != "approved":
+                            aid = found[0] if found else create_approval(
+                                db_path, workflow_id=wf_id, node_id=node_id,
+                                agent_id=role, tool_id=tool_id, arguments=arguments,
+                            )
+                            # Persist the interrupted batch (assistant tool_calls +
+                            # results appended so far) so the resume path replays
+                            # the approved call verbatim.
+                            db.checkpoint(role,task_id,messages,summary,executed)
+                            raise WorkflowSuspension(
+                                "approval", reason=f"approval required for {tool_id}",
+                                details={"approval_id": aid, "tool_id": tool_id,
+                                         "workflow_id": wf_id, "node_id": node_id,
+                                         "agent_id": role},
+                            )
+            result=await asyncio.wait_for(
+                overlay.call(agent_id=role,tool_id=tool_id,arguments=arguments),
+                timeout=240 if tool_id=="a2a:delegate_task" else 60)
+            is_error=bool(result.get("is_error",False))
+            body=_full_result(result)
+            executed.append(tool_id)
+        except Exception as exc:
+            # A suspension is a clean pause, not a tool error: it must
+            # reach the outer handler, which re-raises it to the A2A
+            # server so the task goes INPUT_REQUIRED instead of the
+            # loop burning rounds and faking a final answer.
+            from agent_ecosystem.orchestration.suspension import WorkflowSuspension
+            if isinstance(exc, WorkflowSuspension):
+                raise
+            is_error=True
+            body=dumps({"is_error":True,"error":f"{type(exc).__name__}: {exc}"})
+        # Save original tool result (up to 1MB) before inserting a brief preview.
+        if tool_id==MemoryToolRegistry.ID:
+            feedback=body[:max_tool_preview_chars]
+        else:
+            ref,truncated=db.save_result(role,task_id,tool_id or "UNKNOWN",body)
+            # A loaded Skill must reach the model as full instructions;
+            # don't silently truncate the SKILL.md at the generic preview limit.
+            preview_limit=max(12000,max_tool_preview_chars) if tool_id=="skills:load" else max_tool_preview_chars
+            feedback=_tool_preview(body,ref,truncated,preview_limit)
+        messages.append({"role":"tool","tool_call_id":call_id,"content":feedback})
+        db.event(role,task_id,"tool_result",{
+            "tool_id":tool_id or "UNKNOWN","arguments_key":dumps(arguments)[:600],
+            "is_error":is_error,"preview":body[:800],"replay":replay,
+        })
+        print(f"[工具已调用{'（审批重放）' if replay else ''}] {role} -> {tool_id} is_error={is_error}",file=sys.stderr,flush=True)
+        # Checkpoint after EVERY call so an interrupted batch resumes by
+        # replaying only the missing calls, never re-executing completed ones.
+        db.checkpoint(role,task_id,messages,summary,executed)
+
     try:
+        # Approval/crash replay: a checkpoint ending in an assistant batch with
+        # missing tool results means the previous dispatch suspended (or died)
+        # mid-batch. Finish those exact calls BEFORE consulting the model —
+        # regenerating them would break digest-bound approvals on
+        # non-deterministic LLMs.
+        last_asst = max((i for i, m in enumerate(messages)
+                         if m.get("role") == "assistant" and m.get("tool_calls")),
+                        default=None)
+        if last_asst is not None:
+            answered = {m.get("tool_call_id") for m in messages[last_asst + 1:]
+                        if m.get("role") == "tool"}
+            pending_calls = [tc for tc in messages[last_asst]["tool_calls"]
+                             if tc.get("id") not in answered]
+            if pending_calls:
+                db.event(role, task_id, "batch_replay", {
+                    "remaining": len(pending_calls),
+                    "tools": [fn_to_id.get((tc.get("function") or {}).get("name"), "UNKNOWN")
+                              for tc in pending_calls],
+                    "has_approval_token": bool(approval_id),
+                })
+                print(f"[审批重放] {role} task={task_id} 待重放={len(pending_calls)} "
+                      f"token={'yes' if approval_id else 'no'}", file=sys.stderr, flush=True)
+                for tc in pending_calls:
+                    fn = tc.get("function") or {}
+                    await _exec_one_tool(tc.get("id"), fn.get("name", ""),
+                                         fn.get("arguments", "{}"), replay=True)
         for round_index in range(max_rounds):
             messages,summary,did_compact=context.ensure(messages,summary,specs)
             if did_compact:
@@ -261,104 +396,8 @@ async def run_tool_loop_with_memory(
             messages.append(assistant)
             print(f"[LLM 工具请求] {names}",file=sys.stderr,flush=True)
             for tc in tool_calls:
-                tool_id=fn_to_id.get(tc.function.name)
-                arguments={}
-                is_error=False
-                try:
-                    if not tool_id:
-                        raise PermissionError("Function not in this agent's tool allowlist")
-                    arguments=json.loads(tc.function.arguments)
-                    if not isinstance(arguments,dict):
-                        raise ValueError("Tool arguments must be a JSON object")
-                    # Phase 3: high-risk tool approval gate (workflow-node mode only)
-                    if task_id and ":" in (task_id or "") and tool_id:
-                        from agent_ecosystem.orchestration.tool_policy import (
-                            create_approval, is_high_risk,
-                        )
-                        from agent_ecosystem.orchestration.suspension import WorkflowSuspension
-                        if is_high_risk(tool_id):
-                            parts = task_id.split(":")
-                            wf_id = parts[0]
-                            node_id = parts[1] if len(parts) >= 2 else ""
-                            db_path = conf.get("orchestration_database", "data/orchestration.sqlite")
-                            from agent_ecosystem.orchestration.tool_policy import (
-                                check_and_consume_approval, find_reusable_approval,
-                            )
-                            token = approval_id  # Phase 3: injected via A2A x-workflow metadata
-                            status = None
-                            if token:
-                                status = check_and_consume_approval(
-                                    db_path, approval_id=token, tool_id=tool_id,
-                                    arguments=arguments, workflow_id=wf_id,
-                                    node_id=node_id, agent_id=role,
-                                )
-                            if status == "rejected":
-                                # Human explicitly said NO: never execute, never re-ask.
-                                raise PermissionError(f"Approval rejected for {tool_id}")
-                            if status != "approved":
-                                # No usable token ('mismatch' means the model regenerated
-                                # different arguments than were approved — fail closed and
-                                # ask again), or the token was already consumed by an
-                                # earlier tool in this dispatch. Reuse a matching
-                                # unconsumed approval when one exists so decisions are
-                                # never silently dropped; otherwise create one.
-                                found = find_reusable_approval(
-                                    db_path, workflow_id=wf_id, node_id=node_id,
-                                    agent_id=role, tool_id=tool_id, arguments=arguments,
-                                )
-                                if found and found[1] == "approved":
-                                    status = check_and_consume_approval(
-                                        db_path, approval_id=found[0], tool_id=tool_id,
-                                        arguments=arguments, workflow_id=wf_id,
-                                        node_id=node_id, agent_id=role,
-                                    )
-                                    if status != "approved":
-                                        found = None  # lost the race; ask fresh
-                                if status != "approved":
-                                    aid = found[0] if found else create_approval(
-                                        db_path, workflow_id=wf_id, node_id=node_id,
-                                        agent_id=role, tool_id=tool_id, arguments=arguments,
-                                    )
-                                    raise WorkflowSuspension(
-                                        "approval", reason=f"approval required for {tool_id}",
-                                        details={"approval_id": aid, "tool_id": tool_id,
-                                                 "workflow_id": wf_id, "node_id": node_id,
-                                                 "agent_id": role},
-                                    )
-                    result=await asyncio.wait_for(
-                        overlay.call(agent_id=role,tool_id=tool_id,arguments=arguments),
-                        timeout=240 if tool_id=="a2a:delegate_task" else 60)
-                    is_error=bool(result.get("is_error",False))
-                    body=_full_result(result)
-                    executed.append(tool_id)
-                except Exception as exc:
-                    # A suspension is a clean pause, not a tool error: it must
-                    # reach the outer handler, which re-raises it to the A2A
-                    # server so the task goes INPUT_REQUIRED instead of the
-                    # loop burning rounds and faking a final answer.
-                    from agent_ecosystem.orchestration.suspension import WorkflowSuspension
-                    if isinstance(exc, WorkflowSuspension):
-                        raise
-                    is_error=True
-                    body=dumps({"is_error":True,"error":f"{type(exc).__name__}: {exc}"})
-                # Save original tool result (up to 1MB) before inserting a brief preview.
-                if tool_id==MemoryToolRegistry.ID:
-                    feedback=body[:max_tool_preview_chars]
-                else:
-                    ref,truncated=db.save_result(role,task_id,tool_id or "UNKNOWN",body)
-                    # A loaded Skill must reach the model as full instructions;
-                    # don't silently truncate the SKILL.md at the generic preview limit.
-                    preview_limit=max(12000,max_tool_preview_chars) if tool_id=="skills:load" else max_tool_preview_chars
-                    feedback=_tool_preview(body,ref,truncated,preview_limit)
-                messages.append({"role":"tool","tool_call_id":tc.id,"content":feedback})
-                db.event(role,task_id,"tool_result",{
-                    "tool_id":tool_id or "UNKNOWN","arguments_key":dumps(arguments)[:600],
-                    "is_error":is_error,"preview":body[:800],
-                })
-                print(f"[工具已调用] {role} -> {tool_id} is_error={is_error}",file=sys.stderr,flush=True)
+                await _exec_one_tool(tc.id, tc.function.name, tc.function.arguments)
             forced_fn=None
-            # Only checkpoint AFTER all responses in a tool-call batch are present.
-            db.checkpoint(role,task_id,messages,summary,executed)
         # Hard tool-round limit: return best-effort summary without further tools.
         messages,summary,_=context.ensure(messages,summary,specs)
         final_messages=context.for_model(messages,summary)+[

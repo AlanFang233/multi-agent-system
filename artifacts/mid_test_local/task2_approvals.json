@@ -1,0 +1,308 @@
+[
+  {
+    "approval_id": "approval_b3916ca7b3ac438a88d1e133e80f4265",
+    "tool_id": "filesystem_code:create_directory",
+    "node_id": "node_d9b63b446e4f438eb057cad8c79e44fd",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149\"}",
+    "decide_rc": 200,
+    "decided_at": "19:15:58"
+  },
+  {
+    "approval_id": "approval_0e259f1def054a798b149ab603a40a91",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"path\": \"sandboxes/258c8916685642f3a261281a8ffde149/validate_metrics.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Independent re-derivation of analytics metrics over bookings.db.\\n\\nComputes, directly from the raw booking records (no project code reused):\\n  - per-room booking counts (confirmed)\\",
+    "decide_rc": 200,
+    "decided_at": "19:22:49"
+  },
+  {
+    "approval_id": "approval_f89be48244a44ee8843c346332f8f4d3",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"validate_metrics.py\"}",
+    "decide_rc": 200,
+    "decided_at": "19:23:13"
+  },
+  {
+    "approval_id": "approval_9efafbbd4bc74d38a1102fa3bd0b4ffa",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"demo.py\", \"timeout_seconds\": 30}",
+    "decide_rc": 200,
+    "decided_at": "19:23:28"
+  },
+  {
+    "approval_id": "approval_b826cda0edc148c9bcc1fa388315b0fe",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"path\": \"/home/alan/projects/multi-agent-system/sandboxes/258c8916685642f3a261281a8ffde149/validate_metrics.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Independent re-derivation of analytics metrics over the real bookings.db.\\n\\nRecomputes directly from raw records (no project code):\\n  per-room",
+    "decide_rc": 200,
+    "decided_at": "19:24:19"
+  },
+  {
+    "approval_id": "approval_108ee872e9fa4b7a8028075fd4fbeadb",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"path\": \"sandboxes/db97156c6d9644c886c415fbcd110cd7/probe.py\", \"content\": \"import os, glob, sys\\nprint(\\\"cwd:\\\", os.getcwd())\\nprint(\\\"argv0 dir:\\\", os.path.dirname(os.path.abspath(__file__)))\\nprint(\\\"list cwd:\\\", sorted(os.listdir(\\\".\\\")))\\nprint(\\\"list argvdir:\\\", sorted(os.listdir(os.path.dirna",
+    "decide_rc": 200,
+    "decided_at": "19:24:47"
+  },
+  {
+    "approval_id": "approval_008406d4c403472c8a50214bf734fbf8",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"path\": \"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/db97156c6d9644c886c415fbcd110cd7/probe.py\", \"content\": \"import os, glob\\nprint(\\\"cwd:\\\", os.getcwd())\\nprint(\\\"argv0 dir:\\\", os.path.dirname(os.path.abspath(__file__)))\\nprint(\\\"list cwd:\\\", sorted(os.listdir(\\\".\\\")))\\nprint(\\\"",
+    "decide_rc": 200,
+    "decided_at": "19:25:05"
+  },
+  {
+    "approval_id": "approval_e14be715a3024220a18a7a28a0ead8df",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"sandbox_id\": \"db97156c6d9644c886c415fbcd110cd7\", \"script\": \"probe.py\"}",
+    "decide_rc": 200,
+    "decided_at": "19:25:23"
+  },
+  {
+    "approval_id": "approval_758e1ee339be4676ba25a134b40c4b40",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"path\": \"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/validate_metrics.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Independent re-derivation of analytics metrics over the real bookings.db.\\\"\\\"\\\"\\nimport os, sqlite3\\n\\nHERE = os.path.dirname(os.p",
+    "decide_rc": 200,
+    "decided_at": "19:25:47"
+  },
+  {
+    "approval_id": "approval_7542f9a15b3a4fc695f2669d6d9e22a4",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"validate_metrics.py\"}",
+    "decide_rc": 200,
+    "decided_at": "19:26:05"
+  },
+  {
+    "approval_id": "approval_f299763d322645a39740028b3c199d40",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"path\": \"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/scan_modules.py\", \"content\": \"import os, re\\nHERE = os.path.dirname(os.path.abspath(__file__))\\nKEYS = [\\\"metric\\\", \\\"analytic\\\", \\\"dashboard\\\", \\\"chart\\\", \\\"busiest\\\", \\\"cancel_rate\\\",\\n       ",
+    "decide_rc": 200,
+    "decided_at": "19:26:23"
+  },
+  {
+    "approval_id": "approval_c84ca5070bdc4e7fae067b67d84718e2",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"script\": \"scan_modules.py\", \"sandbox_id\": \"258c8916685642f3a261281a8ffde149\"}",
+    "decide_rc": 200,
+    "decided_at": "19:26:39"
+  },
+  {
+    "approval_id": "approval_852ce8ace6604d2ca9abde7def5ba796",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"path\": \"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/final_evidence.py\", \"content\": \"import os, hashlib, sqlite3\\nHERE = os.path.dirname(os.path.abspath(__file__))\\ndef sha(p):\\n    return hashlib.sha256(open(p, \\\"rb\\\").read()).hexdigest()\\nprint(",
+    "decide_rc": 200,
+    "decided_at": "19:26:57"
+  },
+  {
+    "approval_id": "approval_cd45c970365c4e958db38b3261190fef",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_95888c8fe1bb4d18b8379ad5763d533f",
+    "agent_id": "midtest-software:qa",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"final_evidence.py\"}",
+    "decide_rc": 200,
+    "decided_at": "19:27:15"
+  },
+  {
+    "approval_id": "approval_3790ea1f06d84346a54b22e8793523c0",
+    "tool_id": "filesystem_code:create_directory",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249\"}",
+    "decide_rc": 200,
+    "decided_at": "19:28:09"
+  },
+  {
+    "approval_id": "approval_10deaef8719a4562a0e4ce57841c8275",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249/booking_store.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Booking system core: SQLite schema, seed data and booking primitives.\\n\\nThis is the single source of truth for the booking *records* that the\\ndashboard reads. Schema matches the QA ora",
+    "decide_rc": 200,
+    "decided_at": "19:29:37"
+  },
+  {
+    "approval_id": "approval_d9858afe2b014b378d0685509fc25e55",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249/main.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Meeting-room booking CLI (the existing booking system).\\n\\nUsage:\\n  python3 main.py init\\n  python3 main.py show --date 2026-11-23 [--room Boardroom]\\n  python3 main.py book --date 2026-11-23 --",
+    "decide_rc": 200,
+    "decided_at": "19:29:52"
+  },
+  {
+    "approval_id": "approval_90baf675062946afa9cfe5e5492d7d82",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249/metrics_engine.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Metrics engine: aggregates the booking records into dashboard metrics.\\n\\nField contract (matches the QA oracle's re-derivation in validate_metrics.py):\\n  date_range, total_rows, confi",
+    "decide_rc": 200,
+    "decided_at": "19:30:07"
+  },
+  {
+    "approval_id": "approval_ea314f7024904c9d97d075ff1d0026d0",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249/dashboard_ui.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Dashboard front end.\\n\\nRenders the four metric groups returned by metrics_engine (it does NOT\\nrecompute anything):\\n  1. Bookings per room (usage frequency)\\n  2. Total time reserved\\n ",
+    "decide_rc": 200,
+    "decided_at": "19:30:26"
+  },
+  {
+    "approval_id": "approval_e52d887cacf64f539b759de889c8da07",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249/run_e2e.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"End-to-end run: booking system -> metrics engine -> dashboard UI.\\n\\n1. Create the booking DB from the real booking records.\\n2. Start the dashboard service (HTTP) in-process.\\n3. Load the das",
+    "decide_rc": 200,
+    "decided_at": "19:30:41"
+  },
+  {
+    "approval_id": "approval_fed22a9054d24129be0b91d7ac6b2b0a",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249/RUN_INSTRUCTIONS.md\", \"content\": \"# Meeting Room Dashboard — Run Instructions\\n\\n## What was integrated\\n`metrics_engine` + `dashboard_ui` wired to the booking system's real records\\n(`booking_store`/`bookings.db`). The dashboard reads the metrics",
+    "decide_rc": 200,
+    "decided_at": "19:30:56"
+  },
+  {
+    "approval_id": "approval_a724516c72394f22b611f383ffc0906b",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"545ca177834147ce83f7f458880b5249\", \"script\": \"run_e2e.py\", \"timeout_seconds\": 60}",
+    "decide_rc": 200,
+    "decided_at": "19:31:14"
+  },
+  {
+    "approval_id": "approval_6207cb256eb742eea786ebdee0a7d1df",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"545ca177834147ce83f7f458880b5249\", \"script\": \"main.py\", \"timeout_seconds\": 30}",
+    "decide_rc": 200,
+    "decided_at": "19:31:29"
+  },
+  {
+    "approval_id": "approval_5679dddf048545378532e157250b0775",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249/smoke.py\", \"content\": \"print(\\\"hello from sandbox\\\")\\nimport sys\\nprint(sys.version)\\n\"}",
+    "decide_rc": 200,
+    "decided_at": "19:31:48"
+  },
+  {
+    "approval_id": "approval_9a01c14b04704f79906857e1a936cd81",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"545ca177834147ce83f7f458880b5249\", \"script\": \"smoke.py\", \"timeout_seconds\": 30}",
+    "decide_rc": 200,
+    "decided_at": "19:32:03"
+  },
+  {
+    "approval_id": "approval_95794d807f134226a8c2738f0c723a9c",
+    "tool_id": "sandbox:run_pytest",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"545ca177834147ce83f7f458880b5249\", \"target\": \"smoke.py\", \"timeout_seconds\": 30}",
+    "decide_rc": 200,
+    "decided_at": "19:32:21"
+  },
+  {
+    "approval_id": "approval_01a798191c684349904cf4a199090171",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249/test_e2e.py\", \"content\": \"\\\"\\\"\\\"End-to-end integration test: booking records -> metrics -> dashboard.\\\"\\\"\\\"\\nimport os\\nimport tempfile\\n\\nimport booking_store as bs\\nimport metrics_engine as me\\nimport dashboard_ui as ui\\n\\nGROUPS = [\\\"1) Booking",
+    "decide_rc": 200,
+    "decided_at": "19:32:42"
+  },
+  {
+    "approval_id": "approval_5b06b45a44d74b058cb39219c8f91469",
+    "tool_id": "sandbox:run_pytest",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"545ca177834147ce83f7f458880b5249\", \"target\": \"test_e2e.py\", \"timeout_seconds\": 90}",
+    "decide_rc": 200,
+    "decided_at": "19:33:00"
+  },
+  {
+    "approval_id": "approval_6e53f68cf7ed4adfb0aacdb2ed4799f4",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"545ca177834147ce83f7f458880b5249\", \"script\": \"metrics_engine.py\", \"timeout_seconds\": 30}",
+    "decide_rc": 200,
+    "decided_at": "19:33:15"
+  },
+  {
+    "approval_id": "approval_b840c704621a4c87a5ad8054f2e40d14",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/689fb67cadc248c28dbb89ba1e641c62/x.py\", \"content\": \"print(\\\"ok\\\")\\n\"}",
+    "decide_rc": 200,
+    "decided_at": "19:33:37"
+  },
+  {
+    "approval_id": "approval_35adc96931d14e62ad41e455ae219ee3",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"545ca177834147ce83f7f458880b5249/zz_probe.py\", \"content\": \"import sys\\nsys.path.insert(0, \\\".\\\")\\nprint(\\\"PROBE OK\\\")\\n\"}",
+    "decide_rc": 200,
+    "decided_at": "19:34:49"
+  },
+  {
+    "approval_id": "approval_3cae700d949e4906b23797c82f1bdbbf",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"validate_metrics.py\", \"timeout_seconds\": 45}",
+    "decide_rc": 200,
+    "decided_at": "19:35:23"
+  },
+  {
+    "approval_id": "approval_f5997251accd4da4b915eb3c85040ee1",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/545ca177834147ce83f7f458880b5249/PROBE2.py\", \"content\": \"PROBE2 = 1\\n\"}",
+    "decide_rc": 200,
+    "decided_at": "19:35:38"
+  },
+  {
+    "approval_id": "approval_6dab494121304585928257aa71fc1186",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_6d5db86e34a74b0eaae8ce00da3d77ad",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/545ca177834147ce83f7f458880b5249/probe_ok.py\", \"content\": \"print(\\\"PROBE OK from real sandbox\\\")\\n\"}",
+    "decide_rc": 200,
+    "decided_at": "19:36:20"
+  }
+]

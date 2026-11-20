@@ -5,17 +5,17 @@
 # Planner / plan validation
 max_subtasks: 8            # LLM plan size cap (validate_plan)
 max_nodes: 12              # materialized nodes incl. governance synthesis
-max_depth: 6               # longest dependency chain allowed
+max_depth: 8               # longest dependency chain allowed (raised 6->8 for real-LLM Mid_Test: repaired plans split into deeper serial chains; still bounded)
 planner_output_mode: auto  # auto | function | json | text
-structured_output_repairs: 1
+structured_output_repairs: 2  # bounded plan repairs (raised 1->2 for real LLM: capability-split and depth feedback may each need one round)
 
 # Scheduler
 max_concurrency: 3         # parallel A2A node executions
-node_timeout_seconds: 300  # per-dispatch wall clock
-deadline_seconds: 900      # whole-workflow wall clock
+node_timeout_seconds: 900  # per-dispatch wall clock (raised 300->900 for real-LLM Mid_Test: one HKGAI node segment measured up to 282s with multi-round tool loops; mock runs unaffected)
+deadline_seconds: 5400     # whole-workflow wall clock (raised 900->5400 for real-LLM Mid_Test incl. HITL waits)
 max_node_retries: 1        # same agent, SAME task_id (idempotent re-dispatch)
 max_reassignments: 1       # switch to another fully-capable agent
-max_a2a_calls: 24          # total dispatch budget per workflow
+max_a2a_calls: 120         # total dispatch budget per workflow (raised 24->40->120 for real-LLM Mid_Test: every HITL approval consumes one resume dispatch; Task 2 attempt-2 exhausted 40)
 node_tool_budget: 12       # per-node tool/round budget passed to agents
 
 # Governance node

@@ -509,3 +509,65 @@ class TestToolPolicyGateReuse:
         found = find_reusable_approval(str(db_path), arguments=self.ARGS, **self.BINDING)
         assert found == (aid2, "approved")
         assert aid1 != aid2
+
+
+class TestDecisionRaceDelivery:
+    """Regression: a decision landing while the node is still RUNNING (before
+    the scheduler parks it) used to strand the workflow forever — the decide
+    endpoint only transitions WAITING_INPUT nodes. The scheduler's poll must
+    deliver stored decisions."""
+
+    def _park(self, store, wf, node, approval_id):
+        from agent_ecosystem.orchestration.state_machine import transition_node
+        transition_node(node, NodeStatus.RUNNING)
+        transition_node(node, NodeStatus.WAITING_INPUT)
+        node.metadata["pending_approval_id"] = approval_id
+        store.save_node(node)
+
+    def _sched(self, store):
+        from agent_ecosystem.orchestration.scheduler import DagScheduler
+        return DagScheduler(store, None)
+
+    def _seed(self, db_path):
+        store = SQLiteWorkflowStore(db_path)
+        wf = Workflow(goal="g", status=WorkflowStatus.RUNNING)
+        store.save_workflow(wf)
+        node = WorkflowNode(workflow_id=wf.workflow_id, plan_key="impl",
+                            description="d", required_capabilities=["coding"],
+                            assigned_agent="coding")
+        store.save_node(node)
+        return store, wf, node
+
+    def test_approved_before_park_delivered_on_poll(self, db_path):
+        store, wf, node = self._seed(db_path)
+        svc = ApprovalService(ApprovalRepository(db_path))
+        req = svc.request(agent_id="coding", tool_id="filesystem_code:write_file",
+                          arguments={"path": "x.py"}, workflow_id=wf.workflow_id,
+                          node_id=node.node_id)
+        svc.decide(req.approval_id, ApprovalStatus.APPROVED)  # lands BEFORE park
+        self._park(store, wf, node, req.approval_id)
+        self._sched(store)._deliver_pending_decisions(wf, [node])
+        assert node.status == NodeStatus.PENDING
+        assert node.metadata["approval_token"] == req.approval_id
+        assert node.metadata.get("replay_mode") is True
+
+    def test_rejected_before_park_fails_node_on_poll(self, db_path):
+        store, wf, node = self._seed(db_path)
+        svc = ApprovalService(ApprovalRepository(db_path))
+        req = svc.request(agent_id="coding", tool_id="sandbox:run_python",
+                          arguments={"script": "m.py"}, workflow_id=wf.workflow_id,
+                          node_id=node.node_id)
+        svc.decide(req.approval_id, ApprovalStatus.REJECTED)  # lands BEFORE park
+        self._park(store, wf, node, req.approval_id)
+        self._sched(store)._deliver_pending_decisions(wf, [node])
+        assert node.status == NodeStatus.FAILED
+
+    def test_pending_approval_stays_parked(self, db_path):
+        store, wf, node = self._seed(db_path)
+        svc = ApprovalService(ApprovalRepository(db_path))
+        req = svc.request(agent_id="coding", tool_id="sandbox:run_python",
+                          arguments={"script": "m.py"}, workflow_id=wf.workflow_id,
+                          node_id=node.node_id)
+        self._park(store, wf, node, req.approval_id)
+        self._sched(store)._deliver_pending_decisions(wf, [node])
+        assert node.status == NodeStatus.WAITING_INPUT  # no decision yet

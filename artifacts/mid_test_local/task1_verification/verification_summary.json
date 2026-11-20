@@ -1,0 +1,68 @@
+[
+  {
+    "id": "A",
+    "name": "Availability view lists rooms and slots",
+    "ok": true,
+    "evidence": "Boardroom 18/18 free on fresh DB"
+  },
+  {
+    "id": "B",
+    "name": "Create booking succeeds",
+    "ok": true,
+    "evidence": "SUCCESS: booking #1 confirmed - Boardroom (Operator verification booking) on 2026-11-23, 10:00-11:00 for Operator"
+  },
+  {
+    "id": "C",
+    "name": "Double booking (overlap) blocked",
+    "ok": true,
+    "evidence": "ERROR: Overlap: Boardroom is already booked 10:00-11:00 on 2026-11-23 by Operator (booking #1). Choose another slot or cancel that booking first."
+  },
+  {
+    "id": "C2",
+    "name": "Touching interval (11:00 after 10:00-11:00) allowed",
+    "ok": true,
+    "evidence": "SUCCESS: booking #2 confirmed - Boardroom (Back-to-back booking) on 2026-11-23, 11:00-11:30 for Operator"
+  },
+  {
+    "id": "D",
+    "name": "Cancel booking succeeds",
+    "ok": true,
+    "evidence": "SUCCESS: booking #1 cancelled - Boardroom on 2026-11-23, 10:00-11:00. The slot is now free."
+  },
+  {
+    "id": "E",
+    "name": "Cancelled slot immediately re-bookable",
+    "ok": true,
+    "evidence": "slot_free=True; rebook rc=0"
+  },
+  {
+    "id": "F",
+    "name": "Data persists across process restarts (SQLite)",
+    "ok": true,
+    "evidence": "list shows 2 confirmed + cancelled rows in fresh process"
+  },
+  {
+    "id": "G",
+    "name": "Understandable usage documentation",
+    "ok": true,
+    "evidence": "README.md 1930 chars with start/book/cancel instructions"
+  },
+  {
+    "id": "T1",
+    "name": "Team demo.py re-run by operator exits 0",
+    "ok": true,
+    "evidence": "rc=0"
+  },
+  {
+    "id": "T2",
+    "name": "Team checks.py (restart persistence) re-run passes",
+    "ok": true,
+    "evidence": "rc=0"
+  },
+  {
+    "id": "T3",
+    "name": "Team boundary_test.py re-run passes",
+    "ok": true,
+    "evidence": "rc=0, tail=BOUNDARY SUITE: ALL PASSED"
+  }
+]

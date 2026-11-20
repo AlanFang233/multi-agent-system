@@ -129,6 +129,7 @@ class DagScheduler:
                 if waiting:
                     # HITL suspension: nodes wait for human input; poll until the
                     # approval/clarification endpoint transitions them back to PENDING.
+                    self._deliver_pending_decisions(workflow, waiting)
                     waiting_key = tuple(sorted(n.node_id for n in waiting))
                     if waiting_key != getattr(self, "_last_waiting", None):
                         self._last_waiting = waiting_key
@@ -155,6 +156,69 @@ class DagScheduler:
                 self._apply_outcome(workflow, outcome)
 
     # -- main-loop internals (the ONLY place that mutates state) -------------
+
+    def _deliver_pending_decisions(
+        self, workflow: Workflow, waiting: list[WorkflowNode]
+    ) -> None:
+        """Close the decide-vs-park race.
+
+        A human decision can land while the node is still RUNNING (the approval
+        row is created agent-side before the dispatcher returns INPUT_REQUIRED),
+        and the decide endpoints only transition nodes that are already
+        WAITING_INPUT. Without this re-check a decided suspension would strand
+        the workflow forever. While polling, deliver any stored decision:
+        approved -> PENDING + token, rejected/cancelled -> FAILED (cascade then
+        sweeps dependents), answered clarification -> PENDING + answer.
+        """
+        db_path = getattr(self.store, "path", None)
+        if db_path is None:
+            return  # in-memory stores (unit tests) have no HITL tables
+        from .hitl import ApprovalRepository, ClarificationRepository
+        approvals = ApprovalRepository(str(db_path))
+        clarifications = ClarificationRepository(str(db_path))
+        for node in waiting:
+            if node.status != NodeStatus.WAITING_INPUT:
+                continue
+            aid = node.metadata.get("pending_approval_id")
+            if aid:
+                req = approvals.get(aid)
+                if req is not None and req.status == "approved":
+                    transition_node(node, NodeStatus.PENDING)
+                    node.metadata["approval_token"] = req.approval_id
+                    node.metadata["replay_mode"] = True
+                    node.metadata.pop("suspension", None)
+                    self.store.save_node(node)
+                    self._emit("node_decision_delivered", {
+                        "workflow_id": workflow.workflow_id, "node_id": node.node_id,
+                        "kind": "approval", "decision": "approved",
+                        "approval_id": req.approval_id,
+                    })
+                    continue
+                if req is not None and req.status in ("rejected", "cancelled", "denied"):
+                    transition_node(
+                        node, NodeStatus.FAILED,
+                        error=f"approval {req.status} (delivered by scheduler poll)",
+                    )
+                    self.store.save_node(node)
+                    self._emit("node_decision_delivered", {
+                        "workflow_id": workflow.workflow_id, "node_id": node.node_id,
+                        "kind": "approval", "decision": req.status,
+                    })
+                    continue
+            cid = node.metadata.get("pending_clarification_id")
+            if cid:
+                creq = clarifications.get(cid)
+                if creq is not None and creq.status == "answered" and creq.answer:
+                    transition_node(node, NodeStatus.PENDING)
+                    node.metadata["clarification_answer"] = creq.answer
+                    node.metadata["replay_mode"] = True
+                    node.metadata.pop("suspension", None)
+                    self.store.save_node(node)
+                    self._emit("node_decision_delivered", {
+                        "workflow_id": workflow.workflow_id, "node_id": node.node_id,
+                        "kind": "clarification", "status": creq.status,
+                    })
+                    continue
 
     def _cascade_sweep(
         self,

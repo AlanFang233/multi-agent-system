@@ -278,12 +278,31 @@ class Planner:
             except PlanValidationError as exc:
                 last_error = str(exc)
             except TaskAssignmentError as exc:
-                # Capability gaps are structural, not textual: do not burn repairs.
-                attempt.error = str(exc)
-                attempts.append(self._finish(attempt))
-                raise PlanningError(
-                    f"plan rejected: {exc}", attempts=[a.to_dict() for a in attempts]
-                ) from exc
+                # Capability gaps: fail fast ONLY when a required capability is
+                # absent from the whole catalog (no repair can invent an agent).
+                # When every capability exists but no SINGLE agent covers one
+                # subtask, the planner can split it — spend one bounded repair
+                # with explicit feedback (real-LLM Mid_Test Task 2 failure mode:
+                # ['statistics','coding'] merged into one subtask).
+                from .assignment import normalize_capability
+                catalog_caps: set[str] = set()
+                for card in getattr(assigner, "cards", []):
+                    catalog_caps.update(card.capabilities)
+                required_all = {normalize_capability(c)
+                                for st in ordered for c in st.required_capabilities}
+                if required_all - catalog_caps:
+                    attempt.error = str(exc)
+                    attempts.append(self._finish(attempt))
+                    raise PlanningError(
+                        f"plan rejected: {exc}", attempts=[a.to_dict() for a in attempts]
+                    ) from exc
+                last_error = (
+                    f"capability coverage rejected the plan: {exc} Every required "
+                    "capability exists in the catalog, but no single agent fully "
+                    "covers at least one subtask. Re-split that subtask into pieces "
+                    "that one agent can each fully cover, or adjust "
+                    "required_capabilities to match a single agent."
+                )
             except _ProviderCapabilityError as exc:
                 attempt.error = f"provider capability: {exc}"
                 attempts.append(self._finish(attempt))

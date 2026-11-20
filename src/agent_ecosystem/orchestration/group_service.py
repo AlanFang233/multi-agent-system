@@ -8,7 +8,7 @@ Tables added: ``groups``, ``group_agents``
 """
 from __future__ import annotations
 
-import json, os, signal, sqlite3, subprocess, sys, time
+import json, os, signal, sqlite3, subprocess, time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -16,10 +16,11 @@ from typing import Any
 
 @dataclass
 class GroupAgent:
-    agent_id: str          # "lead" | "dev" | "qa" | "release"
+    agent_id: str          # namespaced "{group}:{role}" after activation
     role_name: str         # "Technical Lead" | "Software Developer" | ...
     role_prompt: str       # Full system prompt (injected into A2A server)
     capabilities: list[str] = field(default_factory=list)
+    tool_profile: str = "research"   # which base permission set to copy
     port: int = 0          # Dynamically assigned
     pid: int = 0           # OS process ID
 
@@ -138,32 +139,73 @@ class GroupService:
 
     def start_agents(self, group_id: str, agents: list[GroupAgent],
                      base_port: int = 8100) -> list[GroupAgent]:
-        """Spawn one A2A server process per agent on sequential ports."""
+        """Spawn one A2A server process per agent on sequential ports.
+
+        Agent ids are namespaced as ``{group_id}:{role}`` so memory rows, tool
+        permissions and delegation routes never collide across groups. Each
+        group gets its own generated MCP/agent registry files (permissions are
+        copied from the role's ``tool_profile``), passed to the child process
+        via MAS_* environment variables."""
+        import yaml
+
         repo_root = Path(__file__).resolve().parents[3]
         venv_python = str(repo_root / ".venv" / "bin" / "python")
+        config_dir = repo_root / "config"
+
+        # Load base registries to copy servers/permissions/policy from
+        base_mcp = yaml.safe_load((config_dir / "mcp_registry.yaml").read_text(encoding="utf-8"))
+        base_agents = yaml.safe_load((config_dir / "agent_registry.yaml").read_text(encoding="utf-8"))
+        base_permissions = base_mcp.get("permissions", {})
+
+        # Generate group-scoped registries
+        group_mcp = {"servers": base_mcp.get("servers", {}), "permissions": {}}
+        group_registry = {"agents": {}, "policy": base_agents.get("policy", {})}
         started = []
         for i, agent in enumerate(agents):
             port = base_port + i
-            # Persist role config so the A2A server can read it
+            ns_id = f"{group_id}:{agent.agent_id}" if ":" not in agent.agent_id else agent.agent_id
+            url = f"http://127.0.0.1:{port}"
+            profile = getattr(agent, "tool_profile", "research")
+            group_mcp["permissions"][ns_id] = list(base_permissions.get(profile, []))
+            group_registry["agents"][ns_id] = {
+                "url": url,
+                "description": agent.role_name,
+                "capabilities": list(agent.capabilities),
+            }
+            agent.port = port
+            agent.agent_id = ns_id
+            started.append(agent)
+
+        mcp_path = config_dir / f"mcp_registry_{group_id}.yaml"
+        reg_path = config_dir / f"agent_registry_{group_id}.yaml"
+        mcp_path.write_text(yaml.safe_dump(group_mcp, allow_unicode=True), encoding="utf-8")
+        reg_path.write_text(yaml.safe_dump(group_registry, allow_unicode=True), encoding="utf-8")
+
+        env = dict(os.environ)
+        env["MAS_MCP_REGISTRY"] = str(mcp_path)
+        env["MAS_AGENT_REGISTRY"] = str(reg_path)
+
+        for agent in started:
+            role_name = agent.agent_id.split(":", 1)[1]
             with self._connect() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO group_agents(agent_id, group_id, role_name, "
                     "role_prompt, capabilities_json, port, pid) VALUES(?,?,?,?,?,?,?)",
                     (agent.agent_id, group_id, agent.role_name, agent.role_prompt,
-                     json.dumps(agent.capabilities), port, 0),
+                     json.dumps(agent.capabilities), agent.port, 0),
                 )
                 conn.commit()
-            # Start the agent process
+            log_dir = repo_root / "logs"
+            log_dir.mkdir(exist_ok=True)
+            log_file = open(log_dir / f"group_{group_id}_{role_name}.log", "ab")
             proc = subprocess.Popen(
                 [venv_python, "-m", "agent_ecosystem.a2a_server",
-                 "--group-id", group_id, "--role-name", agent.agent_id,
-                 "--port", str(port), "--host", "127.0.0.1"],
-                cwd=str(repo_root),
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                 "--group-id", group_id, "--role-name", role_name,
+                 "--port", str(agent.port), "--host", "127.0.0.1"],
+                cwd=str(repo_root), env=env,
+                stdout=log_file, stderr=log_file,
             )
-            agent.port = port
             agent.pid = proc.pid
-            started.append(agent)
             with self._connect() as conn:
                 conn.execute(
                     "UPDATE group_agents SET pid=? WHERE group_id=? AND agent_id=?",
@@ -171,7 +213,7 @@ class GroupService:
                 )
                 conn.commit()
         # Wait for servers to bind
-        time.sleep(2)
+        time.sleep(3)
         return started
 
     def stop_agents(self, group_id: str) -> None:
@@ -217,7 +259,9 @@ SCENARIO_1_ROLES = [
             "- Use authorized MCP tools. Verify execution results before claiming success.\n"
             "- You may delegate subtasks to other agents via a2a:delegate_task."
         ),
-        "capabilities": ["planning", "task_decomposition", "delegation", "synthesis", "web_search"],
+        "capabilities": ["planning", "task_decomposition", "delegation", "synthesis",
+                     "evidence_synthesis", "web_search"],
+        "tool_profile": "research",
     },
     {
         "agent_id": "dev",
@@ -233,6 +277,7 @@ SCENARIO_1_ROLES = [
             "- You may delegate subtasks to other agents via a2a:delegate_task."
         ),
         "capabilities": ["coding", "sandbox_execution", "file_editing", "python_debugging"],
+        "tool_profile": "coding",
     },
     {
         "agent_id": "qa",
@@ -248,6 +293,7 @@ SCENARIO_1_ROLES = [
             "- Use authorized MCP tools. Verify execution results before claiming success."
         ),
         "capabilities": ["testing", "sandbox_execution", "statistics", "numerical_analysis"],
+        "tool_profile": "coding",
     },
     {
         "agent_id": "release",
@@ -263,5 +309,6 @@ SCENARIO_1_ROLES = [
             "- Use authorized MCP tools. Verify execution results before claiming success."
         ),
         "capabilities": ["review", "synthesis", "file_editing", "documentation_research"],
+        "tool_profile": "analysis",
     },
 ]

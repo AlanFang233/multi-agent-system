@@ -59,21 +59,21 @@ async def send_a2a_text(
             flush=True,
         )
 
-        if state not in ("TASK_STATE_COMPLETED", "completed"):
-            if return_status:
-                parts_text = "\n".join(parts) if parts else ""
-                return state, parts_text
-            raise RuntimeError(
-                f"下游任务尚未完成或执行失败: {state}"
-            )
-
         parts = [
             part["text"]
             for artifact in task.get("artifacts", [])
             for part in artifact.get("parts", [])
             if "text" in part
         ]
+
+        if state not in ("TASK_STATE_COMPLETED", "completed"):
+            if return_status:
+                return state, "\n".join(parts)
+            raise RuntimeError(
+                f"下游任务尚未完成或执行失败: {state}"
+            )
     else:
+        state = "completed"
         message = result.get("message", result)
         parts = [
             part["text"]

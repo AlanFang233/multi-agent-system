@@ -15,7 +15,6 @@ config-driven ToolGovernance overlay.
 from __future__ import annotations
 
 import hashlib, json, sqlite3, uuid
-from pathlib import Path
 
 HIGH_RISK_TOOLS = frozenset({
     "filesystem_code:write_file",

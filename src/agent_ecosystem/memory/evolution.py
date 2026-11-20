@@ -24,12 +24,11 @@ import hashlib
 import json
 import math
 import re
-import time
 from datetime import datetime, timezone
 from typing import Any
 
 from .embeddings import HashingEmbeddingProvider, cosine_similarity, EmbeddingProvider
-from .store import MemoryDB, now
+from .store import MemoryDB
 
 # ── constants ───────────────────────────────────────────────────────────────
 

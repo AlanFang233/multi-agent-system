@@ -239,13 +239,30 @@ async def test_cancel_flag_stops_scheduling():
 
 async def test_deadlock_guard_raises():
     store, wf, nodes = seed_store([("stuck", []), ("waiting", ["stuck"])])
-    # Simulate a node stranded in a non-terminal, non-runnable state.
+    # Simulate a node stranded in RUNNING without a live worker (crash residue
+    # without lease fields). WAITING_INPUT is NOT a deadlock — it legitimately
+    # polls for human input — so the guard must fire only for truly stuck states.
     from agent_ecosystem.orchestration.state_machine import transition_node
     transition_node(nodes["stuck"], NodeStatus.RUNNING)
-    transition_node(nodes["stuck"], NodeStatus.WAITING_INPUT)
     store.save_node(nodes["stuck"])
     with pytest.raises(OrchestrationError, match="no progress"):
         await make_scheduler(store, ScriptedDispatcher()).run(wf)
+
+
+async def test_waiting_input_polls_instead_of_deadlock():
+    """WAITING_INPUT nodes keep the scheduler polling (HITL), not crashing."""
+    store, wf, nodes = seed_store([("blocked_on_human", [])])
+    from agent_ecosystem.orchestration.state_machine import transition_node
+    transition_node(nodes["blocked_on_human"], NodeStatus.RUNNING)
+    transition_node(nodes["blocked_on_human"], NodeStatus.WAITING_INPUT)
+    store.save_node(nodes["blocked_on_human"])
+
+    scheduler = make_scheduler(store, ScriptedDispatcher(), deadline_seconds=0.4)
+    # Should NOT raise; the deadline aborts the waiting workflow gracefully.
+    # WAITING_INPUT nodes are cancelled (not failed) on abort by design.
+    await scheduler.run(wf)
+    assert nodes["blocked_on_human"].status == NodeStatus.CANCELLED
+    assert "deadline" in (nodes["blocked_on_human"].error or "")
 
 
 async def test_unassigned_node_fails_without_dispatch():

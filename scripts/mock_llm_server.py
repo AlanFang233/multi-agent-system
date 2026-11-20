@@ -1,9 +1,25 @@
 """Offline mock OpenAI-compatible LLM server for E2E testing.
 
-Extended for Phase 2: planner mode (heuristic DAG generation from goal + catalog)
-and workflow-node mode (agent dispatched by Coordinator, no autonomous delegation).
+Supports three request kinds:
+1. PLANNER mode  — system prompt contains "planning module": builds an
+   ExecutionPlan JSON from the goal using catalog-driven keyword heuristics
+   (bilingual zh/en). Never hardcoded to one scenario: node set and
+   capabilities are derived from the goal keywords and the ACTUAL agent
+   catalog embedded in the prompt, so it works for the default 3 agents and
+   for dynamic group agents alike.
+2. WORKFLOW-NODE mode — user prompt contains "[WORKFLOW TASK]": role handlers
+   execute tools when relevant (coding roles run the real Docker sandbox flow)
+   and never delegate autonomously (the Coordinator owns the DAG).
+3. AUTONOMOUS mode (legacy Phase 0) — discover/delegate chains unchanged.
 
-Start:  ./.venv/bin/python scripts/mock_llm_server.py
+Test hooks (explicit, documented):
+- "[MOCK_PLAN_RAW]\n<text>" in the goal → returned verbatim (invalid-JSON tests)
+- "[FORCE_CLARIFY]" in a workflow prompt → agent asks a clarification once
+
+All results produced with this provider are MOCK and must never be reported
+as live-LLM evidence.
+
+Start:  ./.venv/bin/python scripts/mock_llm_server.py   (127.0.0.1:9100)
 """
 from __future__ import annotations
 
@@ -44,6 +60,34 @@ except Exception as exc:
 print("SANDBOX_EXECUTION_OK")
 '''
 
+PRIMES_PY = '''"""Prime numbers from 1 to 100 — executed inside the Docker sandbox."""
+primes = [n for n in range(2, 101)
+          if all(n % d for d in range(2, int(n ** 0.5) + 1))]
+print(f"PRIME_COUNT={len(primes)}")
+print(f"PRIME_SUM={sum(primes)}")
+print(f"PRIMES={primes}")
+print("SANDBOX_EXECUTION_OK")
+'''
+
+CALC_PY = '''"""Simple calculator with self-tests — executed inside the Docker sandbox."""
+
+
+def add(a, b):
+    return a + b
+
+
+def subtract(a, b):
+    return a - b
+
+
+assert add(2, 3) == 5
+assert add(-1, 1) == 0
+assert subtract(5, 3) == 2
+assert subtract(0, 7) == -7
+print(f"CALC_TESTS_PASSED add(2,3)={add(2, 3)} subtract(5,3)={subtract(5, 3)}")
+print("SANDBOX_EXECUTION_OK")
+'''
+
 DELEGATE_TO_CODING = (
     "请在 Docker 沙箱中实现并验证一个小程序：创建沙箱，写入 main.py，"
     f"计算两组训练损失序列 A={LOSS_A} 与 B={LOSS_B} 的数量、首末值、均值、最小值与总降幅，"
@@ -62,8 +106,17 @@ app = FastAPI(title="Mock LLM Server")
 
 
 def _role_of(system_text: str) -> str:
-    if "planning module of the Coordinator" in system_text or "planning module" in system_text:
+    if "planning module" in system_text:
         return "planner"
+    # Dynamic group roles (Scenario 1 dev team)
+    if "Technical Lead" in system_text:
+        return "lead"
+    if "Software Developer" in system_text:
+        return "dev"
+    if "QA Engineer" in system_text or "QA (Quality Assurance) Engineer" in system_text:
+        return "qa"
+    if "Release Manager" in system_text:
+        return "release"
     if "Research Agent" in system_text:
         return "research"
     if "Coding Agent" in system_text:
@@ -87,14 +140,15 @@ def _tool_contents(messages: list[dict]) -> list[str]:
 
 def _search_tool_results(messages: list[dict], pattern: str) -> str | None:
     for content in reversed(_tool_contents(messages)):
-        match = re.search(pattern, content)
+        match = re.search(pattern, content, re.S)
         if match:
             return match.group(1)
     return None
 
 
 def _sandbox_paths(messages: list[dict]) -> tuple[str | None, str | None]:
-    ws = _search_tool_results(messages, r'([/A-Za-z0-9_.\-]*mcp_workspace/sandboxes/[0-9a-f]{32})')
+    ws = _search_tool_results(
+        messages, r'([/A-Za-z0-9_.\-]*mcp_workspace/sandboxes/[0-9a-f]{32})')
     if ws:
         return ws, ws.rstrip("/").split("/")[-1]
     return None, None
@@ -127,12 +181,19 @@ def _call(fn_name: str, arguments: dict) -> dict:
     }
 
 
-def _has_marker(messages: list[dict], marker: str) -> bool:
+def _user_text(messages: list[dict]) -> str:
     for m in reversed(messages):
-        if m.get("role") == "user" and marker in (m.get("content") or ""):
-            return True
-    return False
+        if m.get("role") == "user":
+            return m.get("content") or ""
+    return ""
 
+
+def _has_marker(messages: list[dict], marker: str) -> bool:
+    return any(marker in (m.get("content") or "")
+               for m in messages if m.get("role") == "user")
+
+
+# ── planner: catalog-driven heuristic planning ──────────────────────────────
 
 def _goal_text(messages: list[dict]) -> str:
     for m in messages:
@@ -141,186 +202,220 @@ def _goal_text(messages: list[dict]) -> str:
             match = re.search(r"\[GOAL\]\n(.*?)(?:\n\n\[|$)", content, re.S)
             if match:
                 return match.group(1).strip()
-            return content[:500]
+            return content
     return ""
 
 
 def _parse_catalog(messages: list[dict]) -> dict[str, list[str]]:
-    """Return {agent_id: [cap1,cap2,...]} from the AGENT CATALOG section."""
+    """{agent_id: [caps]} from the [AGENT CATALOG] section (ids may be namespaced)."""
     for m in messages:
         if m.get("role") != "user":
             continue
         content = m.get("content") or ""
         cat: dict[str, list[str]] = {}
         for line in content.splitlines():
-            match = re.search(r"- (\w+):.*?capabilities=([\w,]+)", line)
+            match = re.search(r"^-\s+([\w:.-]+):.*?capabilities=([\w,]+)", line)
             if match:
-                cat[match.group(1)] = [c.strip() for c in match.group(2).split(",") if c.strip()]
+                cat[match.group(1)] = [c for c in match.group(2).split(",") if c]
         if cat:
             return cat
     return {}
 
 
-_CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
-           "六": 6, "七": 7, "八": 8, "九": 9}
+# keyword → capability preference lists (checked in order against the real pool)
+_KW = {
+    "research": (r"研究|调研|资料|检索|查询|research|retriev|investigat|look\s*up",
+                 ["web_search", "documentation_research", "research"]),
+    "code": (r"代码|编程|程序|实现|编写|开发|code|coding|implement|program|build|write|develop",
+             ["coding", "file_editing", "python_debugging", "sandbox_execution"]),
+    "test": (r"测试|试验|实验|验证|质检|test|verif|qa\b",
+             ["testing", "sandbox_execution", "numerical_analysis"]),
+    "analyze": (r"分析|数据|统计|analy|data|statis|metric",
+                ["statistics", "numerical_analysis", "data_analysis", "loss_metrics"]),
+    "report": (r"总结|报告|汇总|综述|交付|summary|summar|report|release|conclu",
+               ["synthesis", "statistics", "evidence_synthesis", "review"]),
+}
 
 
-def _count_topics(goal: str) -> int:
-    # "分别研究三个独立主题" → 3
-    m = re.search(r"(\d+|[一二三四五六七八九])\s*[个项种类]", goal)
+def _kw_hit(kind: str, text: str) -> bool:
+    return re.search(_KW[kind][0], text, re.I) is not None
+
+
+def _pick_cap(kind: str, pool: set[str]) -> str | None:
+    for cap in _KW[kind][1]:
+        if cap in pool:
+            return cap
+    return None
+
+
+_CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8}
+_EN_NUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7}
+
+
+def _count_parallel_topics(goal: str) -> int:
+    if not (re.search(r"分别|独立主题|parallel|respectively|independent", goal, re.I)):
+        return 0
+    m = re.search(r"(\d+|[一二两三四五六七八])\s*[个项种]?", goal)
     if m:
         raw = m.group(1)
         if raw.isdigit():
-            return int(raw)
-        return sum(_CN_NUM.get(ch, 0) for ch in raw) or len(raw)
-    # keyword "分别研究" alone suggests 2+
-    if "分别" in goal and ("研究" in goal or "主题" in goal):
-        return 3
-    return 0
+            return min(int(raw), 8)
+        return _CN_NUM.get(raw, 0)
+    m = re.search(r"\b(one|two|three|four|five|six|seven)\b", goal, re.I)
+    if m:
+        return _EN_NUM.get(m.group(1).lower(), 0)
+    return 3
 
 
-def _pick_cap(cat: dict[str, list[str]], agent: str, preferred: str, fallback: str) -> list[str]:
-    """Return [cap] from agent's catalog, preferring the named cap, falling back."""
-    caps = cat.get(agent, [])
-    if preferred in caps:
-        return [preferred]
-    if fallback and fallback in caps:
-        return [fallback]
-    return [caps[0]] if caps else ["web_search"]
+def _subtask(key: str, description: str, cap: str, deps: list[str], priority: int = 0) -> dict:
+    return {"key": key, "description": description, "required_capabilities": [cap],
+            "depends_on": deps, "priority": priority, "kind": "generic"}
 
 
-# ── plan object construction ─────────────────────────────────────────────────
+def _build_plan(goal: str, cat: dict[str, list[str]]) -> dict:
+    pool: set[str] = set()
+    for caps in cat.values():
+        pool.update(caps)
+    if not pool:
+        pool = {"web_search"}
 
-def _plan_json(subtasks: list[dict]) -> dict:
-    return {"goal_summary": "mock plan", "subtasks": subtasks}
+    n_parallel = _count_parallel_topics(goal)
+    if n_parallel >= 2:
+        cap = _pick_cap("research", pool) or sorted(pool)[0]
+        subs = [_subtask(f"topic_{i+1}",
+                         f"独立研究主题 {i+1}（{goal[:100]}）", cap, [])
+                for i in range(n_parallel)]
+        return {"goal_summary": goal[:200], "subtasks": subs}
+
+    subs: list[dict] = []
+    deps: list[str] = []
+    if _kw_hit("research", goal):
+        cap = _pick_cap("research", pool)
+        if cap:
+            subs.append(_subtask("research_background",
+                                 f"研究背景与资料收集：{goal[:150]}", cap, []))
+            deps = ["research_background"]
+    if _kw_hit("code", goal):
+        cap = _pick_cap("code", pool)
+        if cap:
+            subs.append(_subtask("implement",
+                                 f"实现（编写并准备代码）：{goal[:150]}", cap, list(deps)))
+            deps = deps + ["implement"]
+    if _kw_hit("test", goal):
+        cap = _pick_cap("test", pool)
+        if cap:
+            subs.append(_subtask("test_verify",
+                                 f"在 Docker 沙箱中测试并验证实现，运行代码并报告真实输出：{goal[:150]}",
+                                 cap, list(deps)))
+            deps = deps + ["test_verify"]
+    if _kw_hit("analyze", goal) and not subs:
+        cap = _pick_cap("analyze", pool)
+        if cap:
+            subs.append(_subtask("analyze", f"分析：{goal[:150]}", cap, list(deps)))
+            deps = deps + ["analyze"]
+    if _kw_hit("report", goal):
+        cap = _pick_cap("report", pool)
+        if cap:
+            subs.append(_subtask("final_report",
+                                 f"基于全部前序结果产出最终报告/摘要：{goal[:150]}",
+                                 cap, list(deps), priority=1))
+    if not subs:
+        cap_r = _pick_cap("research", pool) or sorted(pool)[0]
+        cap_s = _pick_cap("report", pool) or cap_r
+        subs = [
+            _subtask("gather", f"查询并整理相关资料：{goal[:150]}", cap_r, []),
+            _subtask("summarize", f"综合分析并总结：{goal[:150]}", cap_s, ["gather"]),
+        ]
+    return {"goal_summary": goal[:200], "subtasks": subs}
 
 
-def _subtask(key: str, description: str, caps: list[str],
-             deps: list[str] | None = None, priority: int = 0,
-             kind: str = "generic") -> dict:
-    return {
-        "key": key, "description": description, "required_capabilities": caps,
-        "depends_on": deps or [], "priority": priority, "kind": kind,
-    }
-
-
-def _planner_response(goal: str, cat: dict[str, list[str]],
-                      tools: list[dict]) -> dict:
-    """Heuristic plan builder respecting the actual agent catalog."""
-    # [MOCK_PLAN_RAW] → raw JSON test (invalid / cycle / schema-violation)
-    raw_marker = re.search(r'\[MOCK_PLAN_RAW\]\n(.*)', goal, re.S)
+def _planner_response(goal: str, cat: dict[str, list[str]], tools: list[dict]) -> dict:
+    raw_marker = re.search(r"\[MOCK_PLAN_RAW\]\n(.*)", goal, re.S)
     if raw_marker:
         return _completion(raw_marker.group(1).strip())
-
-    # Scenario C: parallel independent topics
-    n = _count_topics(goal)
-    if n >= 2 and "综合" in goal and "独立" in goal or n >= 3:
-        subtasks = [
-            _subtask(f"topic_{i+1}", f"研究主题 {i+1}", _pick_cap(cat, "research", "web_search", "evidence_synthesis"))
-            for i in range(n)
-        ]
-        return _respond_plan(subtasks, tools)
-
-    # Scenario B: ML chain (research→data→code→experiment→report)
-    if re.search(r"实验|代码|编程|程序|项目", goal) and re.search(r"报[告]|总结|分析", goal):
-        subtasks = [
-            _subtask("research_ml", "研究相关理论与方法",
-                     _pick_cap(cat, "research", "web_search", "evidence_synthesis")),
-            _subtask("analyze_data", "分析数据集特征与需求",
-                     _pick_cap(cat, "analysis", "numerical_analysis", "statistics"), ["research_ml"]),
-            _subtask("write_code", "编写核心实现代码",
-                     _pick_cap(cat, "coding", "file_editing", "python_debugging"), ["analyze_data"]),
-            _subtask("run_experiment", "在 Docker 沙箱中执行实验并返回真实输出",
-                     _pick_cap(cat, "coding", "sandbox_execution", "python_debugging"), ["write_code"]),
-            _subtask("final_report", "整合各阶段结果形成完整分析报告",
-                     _pick_cap(cat, "analysis", "statistics", "numerical_analysis"),
-                     ["research_ml", "analyze_data", "write_code", "run_experiment"], priority=9),
-        ]
-        return _respond_plan(subtasks, tools)
-
-    # Scenario A / default: chain (research → analysis/summary)
-    subtasks = [
-        _subtask("gather", "查询并整理相关资料",
-                 _pick_cap(cat, "research", "web_search", "evidence_synthesis")),
-        _subtask("summarize", "对整理后的资料进行综合分析总结",
-                 _pick_cap(cat, "analysis", "statistics", "numerical_analysis"), ["gather"]),
-    ]
-    return _respond_plan(subtasks, tools)
-
-
-def _respond_plan(subtasks: list[dict], tools: list[dict]) -> dict:
-    plan_dict = _plan_json(subtasks)
+    plan = _build_plan(goal, cat)
     fn = _find_fn(tools, "submit_plan")
     if fn:
-        return _completion(None, [_call(fn, plan_dict)])
-    return _completion(json.dumps(plan_dict, ensure_ascii=False))
+        return _completion(None, [_call(fn, plan)])
+    return _completion(json.dumps(plan, ensure_ascii=False))
+
+
+# ── script selection for sandbox flows ──────────────────────────────────────
+
+def _select_script(prompt: str) -> tuple[str, str]:
+    low = prompt.lower()
+    if "prime" in low or "质数" in prompt or "素数" in prompt:
+        return PRIMES_PY, "primes.py"
+    if "calculator" in low or "计算器" in prompt:
+        return CALC_PY, "calculator.py"
+    return MAIN_PY, "main.py"
+
+
+_OUTPUT_PATTERN = (
+    r'(PRIME_COUNT=\d+\s*\\?n?PRIME_SUM=\d+|CALC_TESTS_PASSED[^"\\]*'
+    r'|A: n=5.*?SANDBOX_EXECUTION_OK|SANDBOX_EXECUTION_OK)'
+)
 
 
 # ── workflow-node mode handlers (no autonomous delegation) ───────────────────
 
 
-def _wf_research(messages: list[dict], tools: list[dict]) -> dict:
-    if _has_marker(messages, "[SYNTHESIS]"):
-        deps = ""
-        for m in messages:
-            if m.get("role") == "user":
-                deps = str(m.get("content", ""))
-                break
-        match = re.search(r"\[DEPENDENCY RESULTS\].*?(?=\n\n\[|$)", deps, re.S)
-        dep_text = match.group(0)[:1500] if match else "（无上游结果）"
+def _wf_text(role_label: str, messages: list[dict]) -> dict:
+    """Text-only workflow handler for research/lead/release style nodes."""
+    prompt = _user_text(messages)
+    if "[SYNTHESIS]" in prompt:
+        match = re.search(r"\[DEPENDENCY RESULTS\].*?(?=\n\n\[|$)", prompt, re.S)
+        dep_text = match.group(0)[:2500] if match else "（无上游结果）"
         return _completion(
-            "[Mock-Synthesis] 综合报告（MOCK LLM 编排）\n"
-            f"各节点真实执行结果摘要（来自工具审计，非 Agent 自述）：\n{dep_text}\n"
-            "结论：全链路协同完成，实际工具输出已整合（Mock 编排，工具真实执行）。"
+            f"[Mock-Synthesis/{role_label}] 综合报告（MOCK LLM 编排，下游结果为真实产生）\n"
+            f"{dep_text}\n"
+            "结论：各节点结果已整合；未在上述材料中出现的内容一律未声称。"
         )
+    match = re.search(r"\[DEPENDENCY RESULTS\](.*?)\n\n\[", prompt, re.S)
+    deps = match.group(1).strip()[:800] if match else ""
+    task_m = re.search(r"\[WORKFLOW TASK\]\s*(.*)", prompt)
+    task_desc = task_m.group(1).strip()[:150] if task_m else ""
+    body = (f"[Mock-{role_label}/WF] 节点任务完成（MOCK LLM 编排）：{task_desc}\n"
+            "本节点为离线 Mock 决策，未执行真实网络检索。")
+    if deps and deps != "(none)":
+        body += f"\n上游结果摘要：{deps}"
+    return _completion(body)
+
+
+def _wf_sandbox(role_label: str, messages: list[dict], tools: list[dict]) -> dict:
+    """Sandbox-executing workflow handler for coding/qa style nodes."""
+    prompt = _user_text(messages)
+    if not re.search(r"沙箱|执行|运行|代码|程序|实现|测试|sandbox|run|execut|implement|test|code",
+                     prompt, re.I):
+        return _wf_text(role_label, messages)
+    script, filename = _select_script(prompt)
+    step = len(_tool_contents(messages))
+    if step == 0:
+        fn = _find_fn(tools, "sandbox_create")
+        if fn:
+            return _completion(None, [_call(fn, {})])
+    if step == 1:
+        workspace, _ = _sandbox_paths(messages)
+        fn = _find_fn(tools, "filesystem_code_write_file")
+        if fn and workspace:
+            return _completion(None, [_call(fn, {"path": f"{workspace}/{filename}",
+                                                 "content": script})])
+    if step == 2:
+        _, sandbox_id = _sandbox_paths(messages)
+        fn = _find_fn(tools, "sandbox_run_python")
+        if fn and sandbox_id:
+            return _completion(None, [_call(fn, {"sandbox_id": sandbox_id,
+                                                 "script": filename,
+                                                 "timeout_seconds": 30})])
+    run_out = _search_tool_results(messages, _OUTPUT_PATTERN) or "（见工具原始输出）"
     return _completion(
-        "[Mock-Research/WF] 节点任务完成（MOCK LLM 编排，离线验证）。"
-        "已按要求整理相关材料（离线模拟，无真实网络检索；如需真实检索请在 live provider 下运行）。"
+        f"[Mock-{role_label}/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n"
+        f"沙箱输出：{run_out[:800]}"
     )
 
 
-def _wf_coding(messages: list[dict], tools: list[dict]) -> dict:
-    prompt = ""
-    for m in messages:
-        if m.get("role") == "user":
-            prompt = m.get("content") or ""
-            break
-    if re.search(r'沙箱|执行|运行|代码|程序|sandbox|run', prompt):
-        # Sandbox flow WITHOUT delegation (Coordinator handles the DAG).
-        step = len(_tool_contents(messages))
-        if step == 0:
-            fn = _find_fn(tools, "sandbox_create")
-            if fn:
-                return _completion(None, [_call(fn, {})])
-        if step == 1:
-            workspace, _ = _sandbox_paths(messages)
-            fn = _find_fn(tools, "filesystem_code_write_file")
-            if fn and workspace:
-                return _completion(None, [_call(fn, {"path": f"{workspace}/main.py", "content": MAIN_PY})])
-        if step == 2:
-            _, sandbox_id = _sandbox_paths(messages)
-            fn = _find_fn(tools, "sandbox_run_python")
-            if fn and sandbox_id:
-                return _completion(None, [_call(fn, {"sandbox_id": sandbox_id, "script": "main.py", "timeout_seconds": 30})])
-        run_out = _search_tool_results(messages, r'(SANDBOX_EXECUTION_OK)') or "（见工具原始输出）"
-        return _completion(
-            f"[Mock-Coding/WF] 沙箱执行完成（MOCK 编排）。输出：{run_out}"
-        )
-    return _completion("[Mock-Coding/WF] 节点任务完成（MOCK 编排，无工具调用需求）。")
+# ── autonomous delegation handlers (legacy Phase 0 path, unchanged) ─────────
 
-
-def _wf_analysis(messages: list[dict], tools: list[dict]) -> dict:
-    prompt = ""
-    for m in messages:
-        if m.get("role") == "user":
-            prompt = m.get("content") or ""
-            break
-    if re.search(r'A=\[|B=\[|损失|lost|loss_metrics', prompt):
-        return _analysis_auto(messages, tools)
-    return _completion("[Mock-Analysis/WF] 节点任务完成（MOCK 编排，统计推断基于给定数据）。")
-
-
-# ── autonomous delegation handlers (no WF check — dispatch choice is outside) ───────
 
 def _research_auto(messages: list[dict], tools: list[dict]) -> dict:
     step = len(_tool_contents(messages))
@@ -331,7 +426,8 @@ def _research_auto(messages: list[dict], tools: list[dict]) -> dict:
     if step <= 1:
         fn = _find_fn(tools, "a2a_delegate_task")
         if fn:
-            return _completion(None, [_call(fn, {"agent_id": "coding", "task": DELEGATE_TO_CODING})])
+            return _completion(None, [_call(fn, {"agent_id": "coding",
+                                                 "task": DELEGATE_TO_CODING})])
     coding_result = _search_tool_results(messages, r'(\[Mock-Coding\][^"]*)') or "（未获取到）"
     return _completion(
         "[Mock-Research] 端到端任务完成（Mock LLM 编排）。\n"
@@ -350,29 +446,33 @@ def _coding_auto(messages: list[dict], tools: list[dict]) -> dict:
         workspace, _ = _sandbox_paths(messages)
         fn = _find_fn(tools, "filesystem_code_write_file")
         if fn and workspace:
-            return _completion(None, [_call(fn, {"path": f"{workspace}/main.py", "content": MAIN_PY})])
+            return _completion(None, [_call(fn, {"path": f"{workspace}/main.py",
+                                                 "content": MAIN_PY})])
     if step == 2:
         _, sandbox_id = _sandbox_paths(messages)
         fn = _find_fn(tools, "sandbox_run_python")
         if fn and sandbox_id:
-            return _completion(None, [_call(fn, {"sandbox_id": sandbox_id, "script": "main.py", "timeout_seconds": 30})])
+            return _completion(None, [_call(fn, {"sandbox_id": sandbox_id,
+                                                 "script": "main.py",
+                                                 "timeout_seconds": 30})])
     if step == 3:
         fn = _find_fn(tools, "a2a_delegate_task")
         if fn:
-            return _completion(None, [_call(fn, {"agent_id": "analysis", "task": DELEGATE_TO_ANALYSIS})])
-    run_out = _search_tool_results(messages, r'(A: n=5.*?SANDBOX_EXECUTION_OK)') \
-        or _search_tool_results(messages, r'(SANDBOX_EXECUTION_OK)') or "（见工具原始输出）"
+            return _completion(None, [_call(fn, {"agent_id": "analysis",
+                                                 "task": DELEGATE_TO_ANALYSIS})])
+    run_out = _search_tool_results(messages, _OUTPUT_PATTERN) or "（见工具原始输出）"
     analysis_out = _search_tool_results(messages, r'(\[Mock-Analysis\][^"]*)') or "（未获取到）"
     return _completion(
-        "[Mock-Coding] Program executed in Docker sandbox.\n"
-        f"Sandbox output: {run_out[:800]}\n"
-        f"Analysis: {analysis_out[:1200]}"
+        "[Mock-Coding] 程序已在 Docker 沙箱中真实执行完毕。\n"
+        f"沙箱输出摘录：{run_out[:800]}\n"
+        f"Analysis Agent 统计报告：{analysis_out[:1200]}"
     )
 
 
 def _analysis_auto(messages: list[dict], tools: list[dict]) -> dict:
     step = len(_tool_contents(messages))
-    if step == 0:
+    prompt = _user_text(messages)
+    if step == 0 and re.search(r"A=\[|loss|损失", prompt, re.I):
         fn = _find_fn(tools, "skills_load")
         if fn:
             return _completion(None, [_call(fn, {"name": "loss-analysis"})])
@@ -382,11 +482,16 @@ def _analysis_auto(messages: list[dict], tools: list[dict]) -> dict:
             return _completion(None, [_call(fn, {
                 "series_a": LOSS_A, "series_b": LOSS_B, "label_a": "A", "label_b": "B",
             })])
-    metrics = _search_tool_results(messages, r'"total_decrease":\s*([0-9.]+)') or "?"
-    return _completion(
-        f"[Mock-Analysis] 已加载 loss-analysis 技能并完成确定性统计：A 组总降幅 {metrics}；"
-        "B 组收敛更快、末值更低。该数据来自任务给定的示例序列，非真实实验日志。"
-    )
+    metrics = _search_tool_results(messages, r'"total_decrease":\s*([0-9.]+)')
+    if metrics:
+        return _completion(
+            f"[Mock-Analysis] 已加载 loss-analysis 技能并用 skills:loss_metrics 完成确定性统计："
+            f"A 组总降幅 {metrics}；B 组收敛更快、末值更低。数据为任务给定示例序列，非真实实验日志。"
+        )
+    return _wf_text("Analysis", messages)
+
+
+# ── request routing ─────────────────────────────────────────────────────────
 
 
 @app.post("/v1/chat/completions")
@@ -395,32 +500,66 @@ async def chat_completions(request: Request) -> dict:
     messages = body.get("messages", [])
     tools = body.get("tools") or []
     tool_choice = body.get("tool_choice")
-    system = messages[0].get("content", "") if messages and messages[0].get("role") == "system" else ""
+    system = (messages[0].get("content", "")
+              if messages and messages[0].get("role") == "system" else "")
     role = _role_of(system)
 
     if role == "planner":
         goal = _goal_text(messages)
         cat = _parse_catalog(messages)
         result = _planner_response(goal, cat, tools)
-        print(f"[mock-llm] role=planner goal={goal[:60]}... -> plan", flush=True)
+        n = 0
+        try:
+            payload = result["choices"][0]["message"]
+            if payload.get("tool_calls"):
+                n = len(json.loads(payload["tool_calls"][0]["function"]["arguments"])["subtasks"])
+            else:
+                n = len(json.loads(payload["content"])["subtasks"])
+        except Exception:
+            pass
+        print(f"[mock-llm] planner subtasks={n} goal={goal[:60]!r}", flush=True)
         return result
 
     if tool_choice == "none" or not tools:
         return _completion(f"[Mock-{role}] 工具预算已用尽，基于已有工具结果结束（Mock LLM）。")
 
-    # Dispatch: check WF mode first (Coordinator-dispatched node), then autonomous.
-    if _has_marker(messages, "[WORKFLOW TASK]"):
-        wf_handlers = {"research": _wf_research, "coding": _wf_coding, "analysis": _wf_analysis}
-        handler = wf_handlers.get(role)
-    else:
-        handlers = {"research": _research_auto, "coding": _coding_auto, "analysis": _analysis_auto}
+    workflow_mode = _has_marker(messages, "[WORKFLOW TASK]")
+
+    # Test hook: forced clarification request (once; answered prompts pass through)
+    if workflow_mode and "[FORCE_CLARIFY]" in _user_text(messages) \
+            and "[CLARIFICATION_ANSWER]" not in "".join(
+                m.get("content") or "" for m in messages):
+        print(f"[mock-llm] {role} -> clarify (forced)", flush=True)
+        return _completion(
+            "[[CLARIFY: 请确认期望的输出格式：JSON 还是 Markdown？]]"
+        )
+
+    if workflow_mode:
+        handlers = {
+            "research": lambda: _wf_text("Research", messages),
+            "lead": lambda: _wf_text("Lead", messages),
+            "release": lambda: _wf_text("Release", messages),
+            "coding": lambda: _wf_sandbox("Coding", messages, tools),
+            "dev": lambda: _wf_sandbox("Dev", messages, tools),
+            "qa": lambda: _wf_sandbox("QA", messages, tools),
+            "analysis": lambda: _analysis_auto(messages, tools),
+        }
         handler = handlers.get(role)
+        result = handler() if handler else _wf_text(role, messages)
+        print(f"[mock-llm] WF role={role} step={len(_tool_contents(messages))} -> "
+              f"{'tool_call' if result['choices'][0]['message'].get('tool_calls') else 'final'}",
+              flush=True)
+        return result
+
+    handlers = {"research": _research_auto, "coding": _coding_auto,
+                "analysis": _analysis_auto}
+    handler = handlers.get(role)
     if handler is None:
-        return _completion("[Mock] 未识别的角色，直接结束。")
+        return _completion(f"[Mock-{role}] 未识别的角色（非工作流模式），直接结束。")
     result = handler(messages, tools)
-    wf = "WF" if _has_marker(messages, "[WORKFLOW TASK]") else ""
-    print(f"[mock-llm] {wf}role={role} step={len(_tool_contents(messages))} -> "
-          f"{'tool_call' if result['choices'][0]['message'].get('tool_calls') else 'final'}", flush=True)
+    print(f"[mock-llm] role={role} step={len(_tool_contents(messages))} -> "
+          f"{'tool_call' if result['choices'][0]['message'].get('tool_calls') else 'final'}",
+          flush=True)
     return result
 
 

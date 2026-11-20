@@ -10,9 +10,8 @@
 """
 from __future__ import annotations
 
-import argparse, asyncio, json, os, sys, time
+import argparse, asyncio, os, sys
 from datetime import datetime, timezone
-from typing import Any
 
 import httpx
 
@@ -135,7 +134,7 @@ async def cmd_run(goal: str, *, mock: bool = True, follow: bool = True):
                 if aid in hitl_prompted:
                     continue
                 hitl_prompted.add(aid)
-                print(c("yellow", f"\n  ⏳ HITL APPROVAL REQUIRED"))
+                print(c("yellow", "\n  ⏳ HITL APPROVAL REQUIRED"))
                 print(f"    Tool:    {c('cyan', a.get('tool_id','?'))}")
                 print(f"    Risk:    {c('red', a.get('risk_level','?'))}")
                 print(f"    Summary: {a.get('summary','')[:200]}")
@@ -151,7 +150,7 @@ async def cmd_run(goal: str, *, mock: bool = True, follow: bool = True):
                 if cid in hitl_prompted:
                     continue
                 hitl_prompted.add(cid)
-                print(c("yellow", f"\n  ❓ CLARIFICATION NEEDED"))
+                print(c("yellow", "\n  ❓ CLARIFICATION NEEDED"))
                 print(f"    Q: {cl.get('question','?')}")
                 print(f"    ID: {cid}")
                 print(c("dim", f"    → Use: clarify {cid} \"your answer\""))
@@ -172,7 +171,7 @@ async def cmd_run(goal: str, *, mock: bool = True, follow: bool = True):
                     pass
                 print(c("green", f"\n  ✓ Workflow COMPLETED ({len(nodes)} nodes)"))
             elif status == "failed":
-                print(c("red", f"\n  ✗ Workflow FAILED"))
+                print(c("red", "\n  ✗ Workflow FAILED"))
                 if error:
                     print(c("red", f"    {error[:300]}"))
             else:
@@ -249,8 +248,21 @@ async def cmd_group_show(group_id: str):
         print(f"  [{c('cyan', a['agent_id'])}] {a['role_name']} "
               f"caps={a.get('capabilities',[])} port={a.get('port')}")
     print(f"  Workflows: {result.get('workflow_ids', [])}")
+
+
+async def cmd_clarify(cid: str, answer: str):
     await _api("POST", f"/clarifications/{cid}/answer", {"answer": answer})
-    print(c("green", f"  ✓ Answered {cid}"))
+    print(c("green", f"  Answered {cid}"))
+
+
+async def _cmd_groups():
+    groups = await _api("GET", "/groups")
+    if not groups:
+        print(c("dim", "No groups."))
+        return
+    for g in groups:
+        print(f"  {c('cyan', g['group_id'])}  {g['group_name']}  "
+              f"agents={g['agent_count']}  created={g['created_at']}")
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

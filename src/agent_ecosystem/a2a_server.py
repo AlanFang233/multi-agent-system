@@ -19,7 +19,6 @@ from starlette.routing import Route
 
 from agent_ecosystem.settings import get_settings
 from agent_ecosystem.tool_agent import ask_with_tools
-from agent_ecosystem.a2a_delegate import delegate_to_coding
 from agent_ecosystem.orchestration.suspension import WorkflowSuspension
 
 
@@ -108,6 +107,10 @@ def _workflow_context(raw_metadata: dict) -> dict:
             aid = tok.get("approval_id")
             if isinstance(aid, str) and aid:
                 out["approval_id"] = aid
+    # Phase 3: clarification answer re-injection on node resume
+    answer = meta.get("clarification_answer")
+    if isinstance(answer, str) and answer:
+        out["clarification_answer"] = answer
     return out
 
 
@@ -164,6 +167,7 @@ class RoleExecutor(AgentExecutor):
         wf_parent = wf_context.get("parent_task_id")
         wf_max_tools = wf_context.get("max_tool_calls")
         wf_approval_id = wf_context.get("approval_id")
+        wf_clarification_answer = wf_context.get("clarification_answer")
         if wf_task_id:
             workflow_meta = raw_metadata.get("x-workflow") or {}
             print(
@@ -191,6 +195,7 @@ class RoleExecutor(AgentExecutor):
                                     parent_task_id=wf_parent,
                                     max_tool_calls=wf_max_tools,
                                     approval_id=wf_approval_id,
+                                    clarification_answer=wf_clarification_answer,
                                     system_prompt_override=self.role_prompt_override,
                                 )
 
@@ -274,20 +279,24 @@ def main() -> None:
     role = args.name or (args.role_name or "research")
     role_prompt_override = None
     if args.group_id and args.role_name:
+        # Namespace the role so memory/permissions never collide across groups
+        role = f"{args.group_id}:{args.role_name}"
         try:
             from agent_ecosystem.orchestration.group_service import GroupService
             gs = GroupService()
             group = gs.get_group(args.group_id)
             if group:
                 for a in group.agents:
-                    if a.agent_id == args.role_name:
+                    if a.agent_id == role:
                         role_prompt_override = a.role_prompt
-                        role = args.role_name
                         print(f"[Group Agent] {role} loaded from group {args.group_id}",
                               flush=True)
                         break
         except Exception as e:
             print(f"[Group Agent] WARNING: could not load group config: {e}", flush=True)
+        if role_prompt_override is None:
+            print(f"[Group Agent] WARNING: no role prompt found for {role}; "
+                  "agent will refuse tasks (unknown role)", flush=True)
 
     settings = get_settings()
     urls = {

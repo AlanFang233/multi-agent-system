@@ -15,6 +15,7 @@ Design per docs/PHASE1_API_AND_DATA_DESIGN §1-§5 and Phase 2 requirements:
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -197,6 +198,12 @@ class A2ANodeDispatcher:
             [(d, r) for d, r in by_id_deps],
             node.metadata.get("evidence_summaries") or [],
         )
+        # Phase 3 HITL: forward approval token / clarification answer on re-dispatch
+        approval_tokens = []
+        approval_token = node.metadata.get("approval_token")
+        if isinstance(approval_token, str) and approval_token:
+            approval_tokens = [{"approval_id": approval_token}]
+        clarification_answer = node.metadata.get("clarification_answer")
         metadata = {
             "x-agent-delegation": {"trace_id": self.trace_id, "route": [agent_id]},
             "x-workflow": {
@@ -211,9 +218,11 @@ class A2ANodeDispatcher:
                     "max_tool_calls": self.node_tool_budget,
                     "deadline_ts": (node.metadata.get("deadline_ts") or None),
                 },
-                # reserved for Phase 3 HITL replay:
                 "replay_mode": bool(node.metadata.get("replay_mode", False)),
-                "approval_tokens": [],
+                "approval_tokens": approval_tokens,
+                "clarification_answer": (
+                    clarification_answer if isinstance(clarification_answer, str) else None
+                ),
             },
         }
         started = time.monotonic()
@@ -389,6 +398,61 @@ class WorkflowService:
     async def submit(self, goal: str) -> Workflow:
         workflow = self.create_workflow(goal)
         return await self.run_workflow(workflow)
+
+    async def resume(self, workflow_id: str) -> Workflow | None:
+        """Resume an already-materialized workflow (after HITL decision, pause,
+        or coordinator restart). Skips planning; nodes keep their persisted
+        state. Completed nodes are never re-dispatched; re-dispatched nodes
+        reuse the same task_id so agent-side checkpoints dedupe side effects."""
+        workflow = self.store.get_workflow(workflow_id)
+        if workflow is None:
+            return None
+        if workflow.status in (WorkflowStatus.COMPLETED, WorkflowStatus.FAILED,
+                               WorkflowStatus.CANCELLED):
+            return workflow
+        started = time.monotonic()
+        workflow.status = WorkflowStatus.RUNNING
+        workflow.error = None
+        self.store.save_workflow(workflow)
+        self._emit(workflow, "workflow_resumed", {})
+        # Recover nodes stranded in RUNNING by a crash (lease semantics).
+        if hasattr(self.store, "recover_expired_leases"):
+            recovered = self.store.recover_expired_leases()
+            if recovered:
+                self._emit(workflow, "lease_recovery", {"recovered_node_ids": recovered})
+        # resume() always runs with zero live workers: any RUNNING node is stale
+        # (coordinator died mid-dispatch). Reset to PENDING with replay_mode so
+        # agent-side checkpoints serve already-executed side effects from cache.
+        for node in self.store.list_nodes(workflow_id):
+            if node.status == NodeStatus.RUNNING:
+                from .state_machine import transition_node
+                transition_node(node, NodeStatus.PENDING)
+                node.metadata["replay_mode"] = True
+                node.metadata["recovered_from_running"] = True
+                self.store.save_node(node)
+                self._emit(workflow, "node_reset_for_replay", {"node_id": node.node_id})
+        dispatcher = self._dispatcher_factory(workflow)
+        scheduler = DagScheduler(
+            self.store,
+            dispatcher,
+            assigner=self.assigner,
+            max_concurrency=int(self.config["max_concurrency"]),
+            node_timeout=float(self.config["node_timeout_seconds"]),
+            max_retries=int(self.config["max_node_retries"]),
+            max_reassignments=int(self.config["max_reassignments"]),
+            max_a2a_calls=int(self.config["max_a2a_calls"]),
+            deadline_seconds=float(self.config["deadline_seconds"]),
+            event_sink=lambda name, payload: self._emit(workflow, name, payload),
+            prepare_hook=self._prepare_node,
+        )
+        try:
+            await scheduler.run(workflow)
+        except Exception as exc:
+            return self._fail(
+                workflow, f"scheduler error on resume: {type(exc).__name__}: {exc}",
+                started, scheduler=scheduler,
+            )
+        return self._finish(workflow, started, 0, scheduler)
 
     def status(self, workflow_id: str) -> dict[str, Any] | None:
         workflow = self.store.get_workflow(workflow_id)

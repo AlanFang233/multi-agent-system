@@ -334,7 +334,8 @@ async def ask_with_tools(
         task_id: str | None = None,
         parent_task_id: str | None = None,
         max_tool_calls: int | None = None,
-        approval_id: str | None = None,
+approval_id: str | None = None,
+        clarification_answer: str | None = None,
         system_prompt_override: str | None = None,
     ) -> tuple[str, list[str]]:
     """Entry point for an A2A AgentExecutor or a CLI smoke test.
@@ -343,26 +344,32 @@ async def ask_with_tools(
     Coordinator (x-workflow metadata); re-dispatching the same task_id returns
     the persisted checkpoint instead of re-executing tools. ``max_tool_calls``
     bounds the loop rounds for workflow-node budgets.
+
+    Registry config paths can be overridden via environment variables
+    (MAS_MCP_REGISTRY / MAS_AGENT_REGISTRY / MAS_AGENT_SKILLS) so dynamic
+    group agents can run with their own permission and delegation registries.
     """
     
+    import os
+
     from agent_ecosystem.tool_registry import ToolRegistry
     from agent_ecosystem.dynamic_delegation import AgentDelegationRegistry
     from openai import AsyncOpenAI
 
     mcp_registry = ToolRegistry(
-    "config/mcp_registry.yaml"
+        os.environ.get("MAS_MCP_REGISTRY", "config/mcp_registry.yaml")
 )
 
     delegate_registry = AgentDelegationRegistry(
         mcp_registry,
-        config_path="config/agent_registry.yaml",
+        config_path=os.environ.get("MAS_AGENT_REGISTRY", "config/agent_registry.yaml"),
         route=delegation_route,
         trace_id=delegation_trace_id,
 )
 
     registry = AgentSkillRegistry(
         delegate_registry,
-        config_path="config/agent_skills.yaml",
+        config_path=os.environ.get("MAS_AGENT_SKILLS", "config/agent_skills.yaml"),
     )
 
     errors = await registry.refresh()
@@ -390,6 +397,7 @@ async def ask_with_tools(
                 parent_task_id=parent_task_id,
                 approval_id=approval_id,
                 system_prompt_override=system_prompt_override,
+                clarification_answer=clarification_answer,
                 config_path="config/memory.yaml",
             )
 

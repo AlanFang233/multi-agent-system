@@ -117,12 +117,27 @@ class DagScheduler:
 
             nodes = self.store.list_nodes(wf_id)
             by_id = {n.node_id: n for n in nodes}
+            self._cascade_sweep(workflow, nodes, by_id)
             self._launch_ready(workflow, nodes, by_id, running)
 
             if not running:
                 nonterminal = [n for n in nodes if not n.is_terminal]
                 if not nonterminal:
                     return
+                waiting = [n for n in nonterminal
+                           if n.status in (NodeStatus.WAITING_INPUT, NodeStatus.BLOCKED)]
+                if waiting:
+                    # HITL suspension: nodes wait for human input; poll until the
+                    # approval/clarification endpoint transitions them back to PENDING.
+                    waiting_key = tuple(sorted(n.node_id for n in waiting))
+                    if waiting_key != getattr(self, "_last_waiting", None):
+                        self._last_waiting = waiting_key
+                        self._emit("scheduler_waiting_input", {
+                            "workflow_id": wf_id,
+                            "waiting_nodes": [n.node_id for n in waiting],
+                        })
+                    await asyncio.sleep(1.5)
+                    continue
                 waiters = ", ".join(
                     f"{n.node_id[:8]}({n.status.value})" for n in nonterminal[:10]
                 )
@@ -140,6 +155,35 @@ class DagScheduler:
                 self._apply_outcome(workflow, outcome)
 
     # -- main-loop internals (the ONLY place that mutates state) -------------
+
+    def _cascade_sweep(
+        self,
+        workflow: Workflow,
+        nodes: list[WorkflowNode],
+        by_id: dict[str, WorkflowNode],
+    ) -> None:
+        """Fail PENDING/BLOCKED nodes whose dependencies died (idempotent).
+
+        Covers nodes orphaned by out-of-band transitions (e.g. the HITL reject
+        endpoint failing a WAITING_INPUT node directly)."""
+        for node in nodes:
+            if node.status not in (NodeStatus.PENDING, NodeStatus.BLOCKED):
+                continue
+            failed_deps = [
+                by_id[d] for d in node.dependencies
+                if d in by_id and by_id[d].status in (NodeStatus.FAILED, NodeStatus.CANCELLED)
+            ]
+            if failed_deps:
+                dep_label = failed_deps[0].plan_key or failed_deps[0].node_id[:12]
+                transition_node(
+                    node, NodeStatus.FAILED,
+                    error=f"dependency failed: {dep_label}",
+                )
+                self.store.save_node(node)
+                self._emit("node_cascade_failed", {
+                    "workflow_id": workflow.workflow_id, "node_id": node.node_id,
+                    "because_of": failed_deps[0].node_id,
+                })
 
     def _launch_ready(
         self,
@@ -239,6 +283,24 @@ class DagScheduler:
             "agent": outcome.agent_id, "error_kind": outcome.error_kind,
             "error": outcome.error[:300],
         })
+        if outcome.error_kind == "input_required":
+            # HITL suspension: park the node; the approve/answer endpoint will
+            # transition it back to PENDING with the token/answer in metadata.
+            suspension = outcome.evidence if isinstance(outcome.evidence, dict) else {}
+            transition_node(node, NodeStatus.WAITING_INPUT)
+            node.metadata["suspension"] = suspension
+            if suspension.get("approval_id"):
+                node.metadata["pending_approval_id"] = suspension["approval_id"]
+            if suspension.get("clarification_id"):
+                node.metadata["pending_clarification_id"] = suspension["clarification_id"]
+            self.store.save_node(node)
+            self._emit("node_waiting_input", {
+                "workflow_id": workflow.workflow_id, "node_id": node.node_id,
+                "suspend": suspension.get("suspend", "?"),
+                "approval_id": suspension.get("approval_id"),
+                "clarification_id": suspension.get("clarification_id"),
+            })
+            return
         retries = int(node.metadata.get("retries", 0))
         reassignments = int(node.metadata.get("reassignments", 0))
         alternate = (

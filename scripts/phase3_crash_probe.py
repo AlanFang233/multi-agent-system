@@ -11,8 +11,7 @@ IMPORTANT: This test uses a real workflow with real agents and mock LLM,
 so tool execution (Docker, MCP) IS real. However the overall flow is MOCK
 and must NOT be reported as live-LLM evidence.
 """
-import asyncio, json, os, signal, subprocess, sys, time
-from pathlib import Path
+import asyncio, sys, time
 
 import httpx
 
@@ -116,7 +115,7 @@ async def main() -> int:
             for t in tasks[:3]:
                 print(f"  task_id={t[0][:30]} state={t[1]} agent={t[2]}")
         else:
-            print(f"[WARN] No A2A tasks found (may need to restart agents)")
+            print("[WARN] No A2A tasks found (may need to restart agents)")
     except Exception as e:
         print(f"[WARN] A2A task query: {e}")
 

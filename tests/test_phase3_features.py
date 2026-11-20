@@ -5,14 +5,12 @@ All tests are offline (use temporary SQLite databases, no live LLM, no Docker).
 """
 from __future__ import annotations
 
-import asyncio, json, os, sqlite3, sys, tempfile, time
-from pathlib import Path
-from types import SimpleNamespace
+import json, sqlite3
 
 import pytest
 
 from agent_ecosystem.orchestration.models import (
-    NodeStatus, Workflow, WorkflowNode, WorkflowStatus, utc_now,
+    NodeStatus, Workflow, WorkflowNode, WorkflowStatus,
 )
 from agent_ecosystem.orchestration.sqlite_store import SQLiteWorkflowStore
 from agent_ecosystem.orchestration.hitl import (
@@ -21,9 +19,8 @@ from agent_ecosystem.orchestration.hitl import (
     arguments_digest,
 )
 from agent_ecosystem.orchestration.tool_policy import (
-    create_approval, check_and_consume_approval, is_high_risk,
+    is_high_risk,
 )
-from agent_ecosystem.orchestration.suspension import WorkflowSuspension
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -273,7 +270,6 @@ class TestClarification:
         assert svc.get(req.clarification_id).answer == "A1"
 
     def test_expire(self, svc):
-        from agent_ecosystem.orchestration.hitl import _now_iso, datetime
         req = svc.create(workflow_id="wf1", node_id="n1", agent_id="research",
                          question="Q?")
         # Manually expire by moving the clock
@@ -301,7 +297,7 @@ class TestControlFlags:
 # ── A2A TaskStore ───────────────────────────────────────────────────────────
 
 class TestA2ATaskStore:
-    def test_save_and_get(self, db_path):
+    async def test_save_and_get(self, db_path):
         # Ensure tables exist
         s = SQLiteWorkflowStore(db_path)
         from agent_ecosystem.a2a_task_store import SQLiteTaskStore
@@ -315,8 +311,8 @@ class TestA2ATaskStore:
         class FakeCtx:
             context_id = "c1"
             agent = "research"
-        ts.save(FakeTask(), FakeCtx())
-        got = ts.get("task-001")
+        await ts.save(FakeTask(), FakeCtx())
+        got = await ts.get("task-001")
         assert got is not None
         assert got.status.state == "TASK_STATE_COMPLETED"
 

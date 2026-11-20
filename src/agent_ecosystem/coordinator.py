@@ -104,10 +104,52 @@ refresh();setInterval(refresh,6000);
 </script></body></html>"""
 
 
+def _group_service(app: FastAPI, base_svc: Any, group_id: str) -> Any:
+    """Build (and cache) a WorkflowService scoped to one group's dynamic agents.
+
+    Shares the base service's store/approvals/clarifications/control/planner so
+    all workflows remain visible in one place; only the agent catalog (and thus
+    capability assignment + dispatch URLs) is group-specific."""
+    cache = app.state.group_services
+    if group_id in cache:
+        return cache[group_id]
+    from agent_ecosystem.orchestration.assignment import AgentCapabilityCard
+    from agent_ecosystem.orchestration.group_service import GroupService
+    from agent_ecosystem.orchestration.service import WorkflowService
+
+    gs = GroupService()
+    group = gs.get_group(group_id)
+    if group is None or not group.agents:
+        return None
+    urls = gs.get_agent_urls(group_id)
+    cards = [
+        AgentCapabilityCard(
+            agent_id=a.agent_id, description=a.role_name,
+            capabilities=tuple(a.capabilities), url=urls.get(a.agent_id, ""),
+        )
+        for a in group.agents if a.agent_id in urls
+    ]
+    if not cards:
+        return None
+    config = dict(base_svc.config)
+    config["synthesis_capability"] = "evidence_synthesis"
+    svc = WorkflowService(
+        planner=base_svc.planner, config=config, store=base_svc.store,
+        agent_cards=cards, events=base_svc.events,
+        provider_kind=base_svc.provider_kind,
+        approvals=base_svc.approvals, clarifications=base_svc.clarifications,
+        control=base_svc.control,
+    )
+    cache[group_id] = svc
+    return svc
+
+
 def create_app(service: Any = None) -> FastAPI:
     app = FastAPI(title="Agent Coordinator — Phase 3")
     app.state.service = service
     app.state.background_tasks = set()
+    app.state.active_tasks = {}
+    app.state.group_services = {}
 
     def get_service() -> Any:
         if app.state.service is None:
@@ -156,6 +198,10 @@ def create_app(service: Any = None) -> FastAPI:
         task = asyncio.create_task(svc.run_workflow(workflow), name=workflow.workflow_id)
         app.state.background_tasks.add(task)
         task.add_done_callback(app.state.background_tasks.discard)
+        app.state.active_tasks[workflow.workflow_id] = task
+        task.add_done_callback(
+            lambda t, wid=workflow.workflow_id: app.state.active_tasks.pop(wid, None)
+        )
         return {"workflow_id": workflow.workflow_id, "status": workflow.status.value}
 
     @app.get("/workflows")
@@ -218,6 +264,30 @@ def create_app(service: Any = None) -> FastAPI:
 
     # ── Phase 3 HITL ────────────────────────────────────────────────────
 
+    def _ensure_workflow_running(svc: Any, workflow_id: str) -> None:
+        """(Re)start the scheduler loop for a non-terminal workflow if no live
+        background task exists (covers coordinator restarts and HITL resumes)."""
+        wf = svc.store.get_workflow(workflow_id)
+        if wf is None or wf.status.value in ("completed", "failed", "cancelled"):
+            return
+        existing = app.state.active_tasks.get(workflow_id)
+        if existing is not None and not existing.done():
+            return
+        task = asyncio.create_task(svc.resume(workflow_id), name=f"resume-{workflow_id}")
+        app.state.active_tasks[workflow_id] = task
+        task.add_done_callback(
+            lambda t, wid=workflow_id: app.state.active_tasks.pop(wid, None)
+        )
+
+    def _service_for_workflow(svc: Any, workflow_id: str) -> Any:
+        """Return the service that can dispatch this workflow's nodes: the
+        group-scoped service for group workflows, otherwise the default one."""
+        wf = svc.store.get_workflow(workflow_id)
+        group_id = (wf.metadata or {}).get("group_id") if wf else None
+        if not group_id:
+            return svc
+        return _group_service(app, svc, group_id) or svc
+
     @app.get("/approvals")
     async def list_approvals(workflow_id: str | None = None, status: str | None = "pending",
                              limit: int = 50):
@@ -232,22 +302,42 @@ def create_app(service: Any = None) -> FastAPI:
 
     @app.post("/approvals/{approval_id}/decide")
     async def decide_approval(approval_id: str, body: DecisionRequest):
+        from agent_ecosystem.orchestration.models import NodeStatus
+        from agent_ecosystem.orchestration.state_machine import transition_node
+
         svc = get_service()
         req = svc.approvals.decide(
-            approval_id, body.decision, decided_by=body.decided_by, comment=body.comment,
+            approval_id, "approved" if body.decision == "approve" else "rejected",
+            decided_by=body.decided_by, comment=body.comment,
         )
         if req is None:
             return JSONResponse({"error": "unknown approval"}, status_code=404)
+        if req.workflow_id and req.node_id:
+            wsvc = _service_for_workflow(svc, req.workflow_id)
+            node = wsvc.store.get_node(req.node_id)
+            if node is not None and node.status == NodeStatus.WAITING_INPUT:
+                if body.decision == "approve":
+                    # Re-dispatch with the bound token; the agent-side gate
+                    # validates digest/scope and consumes it exactly once.
+                    transition_node(node, NodeStatus.PENDING)
+                    node.metadata["approval_token"] = req.approval_id
+                    node.metadata["replay_mode"] = True
+                    node.metadata.pop("suspension", None)
+                    wsvc.store.save_node(node)
+                else:
+                    # Reject: the tool must NEVER execute; fail the node and let
+                    # the scheduler cascade to dependents.
+                    transition_node(node, NodeStatus.FAILED,
+                                    error=f"approval rejected by {body.decided_by or 'human'}")
+                    wsvc.store.save_node(node)
+                _ensure_workflow_running(wsvc, req.workflow_id)
         return {"approval_id": req.approval_id, "status": req.status, "decision": req.decision}
 
     @app.get("/clarifications")
     async def list_clarifications(workflow_id: str | None = None, status: str | None = "open",
                                   limit: int = 50):
         svc = get_service()
-        reqs = svc.clarifications.repo.list_open(workflow_id)
-        if status != "open":
-            # re-use list_all semantics for non-open queries
-            pass
+        reqs = svc.clarifications.list_open(workflow_id)
         return [{
             "clarification_id": r.clarification_id, "workflow_id": r.workflow_id,
             "node_id": r.node_id, "agent_id": r.agent_id,
@@ -257,20 +347,26 @@ def create_app(service: Any = None) -> FastAPI:
 
     @app.post("/clarifications/{clarification_id}/answer")
     async def answer_clarification(clarification_id: str, body: AnswerRequest):
+        from agent_ecosystem.orchestration.models import NodeStatus
+        from agent_ecosystem.orchestration.state_machine import transition_node
+
         svc = get_service()
         req = svc.clarifications.answer(
             clarification_id, body.answer, answered_by=body.answered_by,
         )
         if req is None:
-            return JSONResponse({"error": "unknown or already answered clarification"}, status_code=404)
-        # Resume the waiting node
-        node = svc.store.get_node(req.node_id) if req.node_id else None
-        if node and node.status.value == "waiting_input":
-            node.metadata["clarification_answer"] = req.answer
-            node.metadata["replay_mode"] = True
-            svc.store.save_node(node)
-            # Transition back to PENDING so the scheduler picks it up
-            # (the scheduler's main loop will re-launch it)
+            return JSONResponse(
+                {"error": "unknown or already answered clarification"}, status_code=404)
+        if req.workflow_id and req.node_id:
+            wsvc = _service_for_workflow(svc, req.workflow_id)
+            node = wsvc.store.get_node(req.node_id)
+            if node is not None and node.status == NodeStatus.WAITING_INPUT:
+                transition_node(node, NodeStatus.PENDING)
+                node.metadata["clarification_answer"] = req.answer
+                node.metadata["replay_mode"] = True
+                node.metadata.pop("suspension", None)
+                wsvc.store.save_node(node)
+                _ensure_workflow_running(wsvc, req.workflow_id)
         return {"clarification_id": req.clarification_id, "status": req.status}
 
     # ── Phase 5: Dynamic Groups ────────────────────────────────────────
@@ -278,7 +374,6 @@ def create_app(service: Any = None) -> FastAPI:
     @app.post("/groups")
     async def create_group(request: Request):
         body = await request.json()
-        svc = get_service()
         group_id = body.get("group_id", "")
         group_name = body.get("group_name", "")
         agents_data = body.get("agents", [])
@@ -314,7 +409,8 @@ def create_app(service: Any = None) -> FastAPI:
             ).fetchone()["agents_json"])
         agents = [
             GroupAgent(agent_id=a["agent_id"], role_name=a["role_name"],
-                       role_prompt=a["role_prompt"], capabilities=a.get("capabilities", []))
+                       role_prompt=a["role_prompt"], capabilities=a.get("capabilities", []),
+                       tool_profile=a.get("tool_profile", "research"))
             for a in agents_data
         ]
         started = gs.start_agents(group_id, agents, base_port=8100)
@@ -359,15 +455,27 @@ def create_app(service: Any = None) -> FastAPI:
         group = gs.get_group(group_id)
         if group is None:
             return JSONResponse({"error": "unknown group"}, status_code=404)
-        # Submit a workflow through the existing Coordinator path
-        workflow = svc.create_workflow(goal)
+        if not gs.get_agent_urls(group_id):
+            return JSONResponse(
+                {"error": f"group {group_id} has no active agents; activate it first"},
+                status_code=409)
+        wsvc = _group_service(app, svc, group_id)
+        if wsvc is None:
+            return JSONResponse(
+                {"error": f"group {group_id} agents not activatable"}, status_code=409)
+        workflow = wsvc.create_workflow(goal)
         workflow.metadata["group_id"] = group_id
-        svc.store.save_workflow(workflow)
-        task = asyncio.create_task(svc.run_workflow(workflow))
+        wsvc.store.save_workflow(workflow)
+        task = asyncio.create_task(wsvc.run_workflow(workflow), name=workflow.workflow_id)
         app.state.background_tasks.add(task)
         task.add_done_callback(app.state.background_tasks.discard)
+        app.state.active_tasks[workflow.workflow_id] = task
+        task.add_done_callback(
+            lambda t, wid=workflow.workflow_id: app.state.active_tasks.pop(wid, None)
+        )
         gs.add_workflow(group_id, workflow.workflow_id)
-        return {"group_id": group_id, "workflow_id": workflow.workflow_id, "status": "submitted"}
+        return {"group_id": group_id, "workflow_id": workflow.workflow_id,
+                "status": "submitted"}
 
     @app.delete("/groups/{group_id}")
     async def deactivate_group(group_id: str):

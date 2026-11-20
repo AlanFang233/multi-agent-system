@@ -1,8 +1,7 @@
 """Phase 4 memory evolution tests: schema migration, 4 memory types,
 evidence grading, hybrid retrieval, promotion, feedback, isolation.
 """
-import json, sqlite3, tempfile
-from pathlib import Path
+import tempfile
 
 import pytest
 
@@ -11,9 +10,7 @@ from agent_ecosystem.memory.embeddings import (
     HashingEmbeddingProvider, cosine_similarity,
 )
 from agent_ecosystem.memory.evolution import (
-    MemoryEvolutionEngine, _features, _jaccard, _utc_now,
-    VERIFICATION_REAL, VERIFICATION_MOCK, VERIFICATION_UNVERIFIED,
-    PROMOTION_PROMOTED, PROMOTION_PROVISIONAL,
+    MemoryEvolutionEngine, _features, _jaccard, VERIFICATION_REAL, VERIFICATION_MOCK, PROMOTION_PROMOTED,
 )
 
 

@@ -260,6 +260,10 @@ def create_app(service: Any = None) -> FastAPI:
         if svc.store.get_workflow(workflow_id) is None:
             return JSONResponse({"error": "unknown workflow"}, status_code=404)
         svc.control.resume(workflow_id)
+        # Clearing the flag alone is not enough after a coordinator restart:
+        # re-spawn the scheduler loop if no live task drives this workflow.
+        wsvc = _service_for_workflow(svc, workflow_id)
+        _ensure_workflow_running(wsvc, workflow_id)
         return {"status": "resumed", "workflow_id": workflow_id}
 
     # ── Phase 3 HITL ────────────────────────────────────────────────────
@@ -413,7 +417,12 @@ def create_app(service: Any = None) -> FastAPI:
                        tool_profile=a.get("tool_profile", "research"))
             for a in agents_data
         ]
-        started = gs.start_agents(group_id, agents, base_port=8100)
+        # Allocate a distinct port block per concurrently-active group so two
+        # groups can run side by side (8100-8109, 8110-8119, ...).
+        with gs._connect() as conn:
+            n_active = conn.execute(
+                "SELECT COUNT(DISTINCT group_id) AS n FROM group_agents").fetchone()["n"]
+        started = gs.start_agents(group_id, agents, base_port=8100 + 10 * n_active)
         urls = {a.agent_id: f"http://127.0.0.1:{a.port}" for a in started}
         return {"group_id": group_id, "status": "active", "agents": urls}
 

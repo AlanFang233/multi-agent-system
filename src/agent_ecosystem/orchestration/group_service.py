@@ -72,13 +72,23 @@ class GroupService:
 
     def create_group(self, group_id: str, group_name: str,
                      agents: list[dict]) -> Group:
-        """Persist a new group with its agent definitions (does NOT start processes)."""
+        """Persist a group with its agent definitions (does NOT start processes).
+
+        Idempotent: re-creating an existing group stops any live agents, clears
+        stale rows and replaces the definition, so a subsequent activate()
+        spawns fresh processes on free ports instead of crashing on the
+        groups.group_id UNIQUE constraint or returning dead URLs."""
         from datetime import datetime, timezone
+        # Best-effort cleanup of any prior incarnation (kills live procs + rows).
+        try:
+            self.stop_agents(group_id)
+        except Exception:
+            pass
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO groups(group_id, group_name, agents_json, created_at) "
-                "VALUES(?,?,?,?)",
+                "INSERT OR REPLACE INTO groups(group_id, group_name, agents_json, "
+                "created_at) VALUES(?,?,?,?)",
                 (group_id, group_name, json.dumps(agents, ensure_ascii=False), now),
             )
             conn.commit()

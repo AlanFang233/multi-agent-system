@@ -38,7 +38,7 @@ SCENARIOS = {
 COORDINATOR_URL = "http://127.0.0.1:8000"
 
 
-async def poll(workflow_id: str, timeout: float = 420.0) -> dict:
+async def poll(workflow_id: str, timeout: float = 900.0) -> dict:
     deadline = time.monotonic() + timeout
     async with httpx.AsyncClient(timeout=30) as client:
         while time.monotonic() < deadline:
@@ -47,6 +47,15 @@ async def poll(workflow_id: str, timeout: float = 420.0) -> dict:
             status = snap["workflow"]["status"]
             if status in ("completed", "failed", "cancelled"):
                 return snap
+            # Phase 3+: coding nodes hit the real HITL approval gate; approve
+            # through the REST flow so the tools actually execute.
+            apr = await client.get(f"{COORDINATOR_URL}/approvals",
+                                   params={"workflow_id": workflow_id, "status": "pending"})
+            for a in apr.json():
+                await client.post(
+                    f"{COORDINATOR_URL}/approvals/{a['approval_id']}/decide",
+                    json={"decision": "approve", "decided_by": "phase2_e2e"})
+                print(f"  auto-approved {a['approval_id']} ({a['tool_id']})", flush=True)
             await asyncio.sleep(1.5)
     raise TimeoutError(f"workflow {workflow_id} did not finish in {timeout}s")
 

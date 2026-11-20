@@ -230,3 +230,66 @@ python -m pytest -q
 确保 `.gitignore` 排除 `.env`、`.venv/`、`data/`、`mcp_workspace/`、`*.sqlite*` 等运行数据。不要提交 API Key、数据库里的历史任务内容或执行日志。
 
 下一次提交建议包含 `README.md`、本安装指南、已补全占位字段的 `.env.example`；还可将 Git/Fetch MCP 的 Python 包加入项目依赖，减少部署步骤。
+
+## 11. 集成能力：Coordinator / 工作流 / HITL / 记忆演化 / 动态 Agent 组
+
+本节面向接手的同伴，说明在原有「3 个 A2A Agent + MCP 工具 + Agent Skills + SQLite 双层记忆」之上，从 AgentForge 迁移并融合进来的编排与治理能力。**原有架构（A2A / MCP / Skills / Docker 沙箱 / 双层记忆）保持不变**，新能力以叠加方式接入，可独立启用。
+
+### 11.1 一键启动完整栈（本地 Mock，无需付费 API）
+
+```bash
+cd ~/projects/multi-agent-system
+bash scripts/phase3_start.sh          # 启动 Mock LLM(9100) + Calculator(9001) + 3 Agent(8001-8003) + Coordinator(8000)
+```
+
+启动后访问 **Dashboard**：http://127.0.0.1:8000/dashboard （提交任务、查看 DAG、审批/澄清、结果、MOCK 横幅）。
+
+> **重要（LLM 后端）**：默认 `.env` 指向本地 Mock LLM（`OPENAI_BASE_URL=http://127.0.0.1:9100/v1`），用于离线、可复现、零成本的验收与回归。若要接真实模型，请把 `.env` 的三个 `OPENAI_*` 改回你的网关（例如备份在 `.env.hkgai.bak`）。**注意：HITL 审批的「摘要绑定」假设同一节点重放时工具参数可复现；Mock 是确定性的，真实 LLM 每次生成的参数可能不同，此时被拒/失配的调用会 fail-closed 重新发起审批（不会误执行），但可能需要多次人工确认。**
+
+### 11.2 Coordinator + DAG 工作流
+
+- `POST /workflows {"goal": "..."}` → 返回 `workflow_id`（202）。Coordinator 用 LLM Planner 生成 DAG，经 Kahn 拓扑校验 + 能力全覆盖分配（CapabilityAssigner），再由单写者 asyncio 并行调度器执行。
+- 每个节点通过 **真实 A2A** 派发给对应 Agent；节点幂等键 `task_id = {workflow_id}:{node_id}:{attempt}`，重试复用 Agent 端 checkpoint（已执行副作用走缓存），改派才递增 attempt。
+- `GET /workflows/{id}` 查看快照（workflow / nodes / events）；`GET /workflows/{id}/result` 取最终结果。
+
+### 11.3 人在回路（HITL）：审批 + 澄清
+
+- **审批**：高风险工具（`filesystem_code:write_file/edit_file/create_directory`、`sandbox:run_python/run_pytest`）在 **Agent 进程内的工具执行边界** 被拦截（不是只在 Coordinator 层）。拦截后节点挂起为 `WAITING_INPUT`，A2A 任务转 `INPUT_REQUIRED`，写入 `approvals` 表（参数 SHA-256 摘要 + workflow/node/agent/tool 五元绑定）。
+  - `GET /approvals?status=pending` 列待办；`POST /approvals/{id}/decide {"decision":"approve"|"reject"}`。
+  - 批准 → 令牌随重放注入，Agent 端 `check_and_consume_approval` 一次性消费（SQL CAS）后真正执行工具；拒绝 → 节点 `FAILED` 并级联下游，工作流 `FAILED`，**被拒工具零执行**。
+- **澄清**：工作流模式下 Agent 可在回答里用 `[[CLARIFY: 问题]]` 触发澄清挂起（同样走 `INPUT_REQUIRED`）；`GET /clarifications?workflow_id=...` + `POST /clarifications/{id}/answer {"answer":"..."}` 回答后节点重放，答案以低信任参考材料注入上下文。
+
+### 11.4 记忆演化（Phase 4）
+
+- 在原有双层记忆上叠加：4 类记忆、证据分级（`REAL_EXECUTION` / `MOCK_SIMULATION` / `UNVERIFIED`）、HashingEmbedding + 混合检索（余弦+Jaccard+重要度+验证度）、程序性记忆晋升（支持度∧置信度阈值）、衰减/遗忘、反馈闭环。
+- **Mock 经验不会被冒充为真实经验**：证据等级区分 LLM 轴（REAL_LLM/MOCK_LLM）与工具轴（REAL_TOOL/MOCK_TOOL/NOT_EXECUTED），MOCK 证据不参与晋升。
+
+### 11.5 动态 Agent 组（Phase 5）
+
+- `POST /groups {"group_id","group_name","agents":[{agent_id,role_name,role_prompt,capabilities,tool_profile}]}` 创建组（幂等：重建同名组会清理旧进程与行）。
+- `POST /groups/{id}/activate` 为每个角色拉起独立 A2A 进程（端口按组分配，避免并发冲突），Agent id 命名空间化为 `{group_id}:{role}`，各组生成独立的 `config/mcp_registry_{gid}.yaml` / `agent_registry_{gid}.yaml`（权限来自角色的 `tool_profile`），通过 `MAS_*` 环境变量隔离——**记忆行、工具权限、记忆检索都按命名空间隔离，跨组不串扰**。
+- `POST /groups/{id}/messages {"goal":"..."}` 在组作用域内跑工作流；`GET /groups/{id}`、`DELETE /groups/{id}`（停止进程、释放端口）。
+- 内置 `SCENARIO_1_ROLES`：Technical Lead / Software Developer / QA Engineer / Release Manager（沿用教师场景原始角色提示，未预置任何任务答案）。
+
+### 11.6 CLI 速用
+
+```bash
+python -m agent_ecosystem.cli run "研究 RAG 的关键组件并对比其作用" --mock   # 提交并跟随
+python -m agent_ecosystem.cli status <workflow_id>
+python -m agent_ecosystem.cli approvals                     # 列待审批
+python -m agent_ecosystem.cli approve <approval_id>
+python -m agent_ecosystem.cli reject  <approval_id>
+python -m agent_ecosystem.cli clarify <clarification_id> "你的回答"
+python -m agent_ecosystem.cli group-create my-team --scenario dev-team
+python -m agent_ecosystem.cli group-activate my-team
+python -m agent_ecosystem.cli group-message my-team "构建一个 Python 计算器并测试加减法"
+python -m agent_ecosystem.cli dashboard
+```
+
+### 11.7 已知限制（如实标注，详见 `docs/INTEGRATION_ACCEPTANCE_REPORT.md`）
+
+- A2A TaskStore 目前为 `InMemoryTaskStore`（与 a2a-sdk 1.3.0 的 SQLite 实现存在接口不兼容，已回退）；工作流/节点/审批/澄清/记忆均持久化于 SQLite，但 A2A 任务本身不跨 Coordinator 重启保留。
+- 审批门只在 **工作流模式**（`task_id` 含 `:`）生效；旧的直接 A2A 委托路径不经过该门（P5 计划项）。
+- 崩溃恢复对「工具批次执行中途」的重放仍有副作用重复风险（幂等键覆盖节点级，未覆盖批次内单工具级）；`tool_reconciliations` 表已建但尚未接入门控（对未知副作用采取 fail-closed = NOT_IMPLEMENTED）。
+- 真实 LLM 下摘要绑定可能因参数不可复现而多次请求审批（fail-closed，安全但需人工多次确认）。
+

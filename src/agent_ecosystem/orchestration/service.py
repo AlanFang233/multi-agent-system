@@ -410,6 +410,12 @@ class WorkflowService:
         if workflow.status in (WorkflowStatus.COMPLETED, WorkflowStatus.FAILED,
                                WorkflowStatus.CANCELLED):
             return workflow
+        # A crash inside the planning window leaves a RUNNING workflow with
+        # zero materialized nodes; nothing was dispatched yet, so re-planning
+        # from scratch is safe and better than a permanent zombie.
+        if not self.store.list_nodes(workflow_id):
+            self._emit(workflow, "resume_replanning", {})
+            return await self.run_workflow(workflow)
         started = time.monotonic()
         workflow.status = WorkflowStatus.RUNNING
         workflow.error = None

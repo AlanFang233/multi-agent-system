@@ -59,6 +59,13 @@ def test_waiting_input_reserved_transitions():
     transition_node(node2, NodeStatus.RUNNING)
     transition_node(node2, NodeStatus.WAITING_INPUT)
     transition_node(node2, NodeStatus.CANCELLED)
+    # reject path: a blocked node awaiting approval must be able to FAIL
+    node3 = _node()
+    transition_node(node3, NodeStatus.RUNNING)
+    transition_node(node3, NodeStatus.WAITING_INPUT)
+    transition_node(node3, NodeStatus.FAILED, error="approval rejected")
+    assert node3.error == "approval rejected"
+    assert node3.finished_at is not None
     with pytest.raises(InvalidNodeTransition):
         transition_node(_node(), NodeStatus.WAITING_INPUT)  # PENDING -> WAITING invalid
 

@@ -51,6 +51,12 @@ data/
 # 5. MCP workspace
 # =====================================
 mcp_workspace/
+src/sandboxes/
+
+# Generated per-group registries (runtime artifacts from GroupService.start_agents;
+# the base config/mcp_registry.yaml and config/agent_registry.yaml stay tracked)
+config/mcp_registry_*.yaml
+config/agent_registry_*.yaml
 
 # =====================================
 # 6. Logs and runtime files

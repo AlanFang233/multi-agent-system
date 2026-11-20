@@ -19,6 +19,9 @@ from agent_ecosystem.orchestration.hitl import (
     arguments_digest,
 )
 from agent_ecosystem.orchestration.tool_policy import (
+    check_and_consume_approval,
+    create_approval,
+    find_reusable_approval,
     is_high_risk,
 )
 
@@ -431,3 +434,78 @@ class TestCASConflict:
         store.save_node(node)
         nodes = store.list_nodes(workflow.workflow_id)
         assert len(nodes) == 1
+
+
+class TestToolPolicyGateReuse:
+    """Gate-side approval reuse: an approved-but-undelivered token must be
+    consumable on the next attempt instead of spawning duplicate approvals
+    (regression: 11 duplicate approvals, 0 consumed, fake COMPLETED node)."""
+
+    BINDING = dict(workflow_id="wf1", node_id="n1", agent_id="coding",
+                   tool_id="sandbox:run_python")
+    ARGS = {"script": "m.py"}
+
+    def _create_schema(self, db_path):
+        SQLiteWorkflowStore(db_path)
+
+    def _set_status(self, db_path, approval_id, status):
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("UPDATE approvals SET status=? WHERE approval_id=?",
+                     (status, approval_id))
+        conn.commit()
+        conn.close()
+
+    def test_reusable_matches_exact_binding_only(self, db_path):
+        self._create_schema(db_path)
+        aid = create_approval(str(db_path), arguments=self.ARGS, **self.BINDING)
+        found = find_reusable_approval(str(db_path), arguments=self.ARGS, **self.BINDING)
+        assert found == (aid, "pending")
+        # any binding/digest mismatch must NOT reuse
+        assert find_reusable_approval(str(db_path), arguments={"script": "other.py"},
+                                      **self.BINDING) is None
+        assert find_reusable_approval(str(db_path), arguments=self.ARGS,
+                                      **{**self.BINDING, "node_id": "n2"}) is None
+
+    def test_consumed_is_single_use_and_not_reusable(self, db_path):
+        self._create_schema(db_path)
+        aid = create_approval(str(db_path), arguments=self.ARGS, **self.BINDING)
+        self._set_status(db_path, aid, "approved")
+        first = check_and_consume_approval(str(db_path), approval_id=aid,
+                                           arguments=self.ARGS, **self.BINDING)
+        assert first == "approved"
+        second = check_and_consume_approval(str(db_path), approval_id=aid,
+                                            arguments=self.ARGS, **self.BINDING)
+        assert second == "consumed"
+        assert find_reusable_approval(str(db_path), arguments=self.ARGS,
+                                      **self.BINDING) is None
+
+    def test_rejected_row_is_rejected_and_not_reusable(self, db_path):
+        self._create_schema(db_path)
+        aid = create_approval(str(db_path), arguments=self.ARGS, **self.BINDING)
+        self._set_status(db_path, aid, "rejected")
+        assert check_and_consume_approval(str(db_path), approval_id=aid,
+                                          arguments=self.ARGS, **self.BINDING) == "rejected"
+        assert find_reusable_approval(str(db_path), arguments=self.ARGS,
+                                      **self.BINDING) is None
+
+    def test_digest_mismatch_is_mismatch_and_row_stays_consumable(self, db_path):
+        """A non-deterministic LLM may regenerate different arguments after
+        resume: that call must NOT run on the old approval (fail closed), but
+        the approved row stays valid for the exact approved arguments."""
+        self._create_schema(db_path)
+        aid = create_approval(str(db_path), arguments=self.ARGS, **self.BINDING)
+        self._set_status(db_path, aid, "approved")
+        assert check_and_consume_approval(str(db_path), approval_id=aid,
+                                          arguments={"script": "changed.py"},
+                                          **self.BINDING) == "mismatch"
+        assert check_and_consume_approval(str(db_path), approval_id=aid,
+                                          arguments=self.ARGS, **self.BINDING) == "approved"
+
+    def test_approved_row_preferred_over_pending(self, db_path):
+        self._create_schema(db_path)
+        aid1 = create_approval(str(db_path), arguments=self.ARGS, **self.BINDING)
+        aid2 = create_approval(str(db_path), arguments=self.ARGS, **self.BINDING)
+        self._set_status(db_path, aid2, "approved")
+        found = find_reusable_approval(str(db_path), arguments=self.ARGS, **self.BINDING)
+        assert found == (aid2, "approved")
+        assert aid1 != aid2

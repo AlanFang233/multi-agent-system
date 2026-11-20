@@ -2,7 +2,8 @@
 
 Adapted from AgentForge@7cee900 src/agentforge/orchestration/state_machine.py,
 extended with WAITING_INPUT (Phase 3 HITL reservation):
-RUNNING -> WAITING_INPUT and WAITING_INPUT -> {PENDING, CANCELLED}.
+RUNNING -> WAITING_INPUT and WAITING_INPUT -> {PENDING, CANCELLED, FAILED}
+(reject drives WAITING_INPUT -> FAILED so the blocked node never executes).
 
 The scheduler main loop is the ONLY caller that mutates node status
 (single-writer principle); dispatch workers return outcomes instead.
@@ -31,7 +32,9 @@ ALLOWED_TRANSITIONS: dict[NodeStatus, frozenset[NodeStatus]] = {
             NodeStatus.CANCELLED,
         }
     ),
-    NodeStatus.WAITING_INPUT: frozenset({NodeStatus.PENDING, NodeStatus.CANCELLED}),
+    NodeStatus.WAITING_INPUT: frozenset(
+        {NodeStatus.PENDING, NodeStatus.CANCELLED, NodeStatus.FAILED}
+    ),
     NodeStatus.BLOCKED: frozenset(
         {NodeStatus.RUNNING, NodeStatus.FAILED, NodeStatus.CANCELLED}
     ),

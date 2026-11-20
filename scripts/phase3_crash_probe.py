@@ -40,6 +40,17 @@ async def wait_for_status(wf_id: str, target_status: str, timeout: float = 120) 
             return snap
         if status in ("failed", "cancelled"):
             return snap
+        # The HITL approval gate is active: auto-approve pending requests so a
+        # coding node's write_file/run_python can actually execute and the
+        # workflow can progress (a passive poller would stall at waiting_input).
+        try:
+            pend = await api("GET", f"/approvals?workflow_id={wf_id}&status=pending")
+            for a in (pend if isinstance(pend, list) else []):
+                await api("POST", f"/approvals/{a['approval_id']}/decide",
+                          {"decision": "approve", "decided_by": "crash_probe"})
+                print(f"  auto-approved {a['approval_id']} ({a.get('tool_id')})")
+        except Exception:
+            pass
         await asyncio.sleep(1.5)
     raise TimeoutError(f"workflow did not reach {target_status}")
 

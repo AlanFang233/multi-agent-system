@@ -182,10 +182,14 @@ def _call(fn_name: str, arguments: dict) -> dict:
 
 
 def _user_text(messages: list[dict]) -> str:
-    for m in reversed(messages):
-        if m.get("role") == "user":
-            return m.get("content") or ""
-    return ""
+    """The task prompt. The runner may append extra user messages AFTER it
+    (long-term memory retrieval context, clarification answers), so pick the
+    first user message carrying a task marker instead of the last one."""
+    users = [m.get("content") or "" for m in messages if m.get("role") == "user"]
+    for content in users:
+        if "[WORKFLOW TASK]" in content or "[GOAL]" in content:
+            return content
+    return users[0] if users else ""
 
 
 def _has_marker(messages: list[dict], marker: str) -> bool:
@@ -352,7 +356,7 @@ def _select_script(prompt: str) -> tuple[str, str]:
 
 
 _OUTPUT_PATTERN = (
-    r'(PRIME_COUNT=\d+\s*\\?n?PRIME_SUM=\d+|CALC_TESTS_PASSED[^"\\]*'
+    r'(PRIME_COUNT=\d+[\s\\n]*PRIME_SUM=\d+|CALC_TESTS_PASSED[^"\\]*'
     r'|A: n=5.*?SANDBOX_EXECUTION_OK|SANDBOX_EXECUTION_OK)'
 )
 
@@ -525,8 +529,12 @@ async def chat_completions(request: Request) -> dict:
 
     workflow_mode = _has_marker(messages, "[WORKFLOW TASK]")
 
-    # Test hook: forced clarification request (once; answered prompts pass through)
+    # Test hook: forced clarification request (once; answered prompts pass
+    # through). Synthesis nodes never clarify — the [FORCE_CLARIFY] marker
+    # leaks into every node prompt via [WORKFLOW GOAL], but only worker nodes
+    # should ask; synthesis just integrates whatever the workers produced.
     if workflow_mode and "[FORCE_CLARIFY]" in _user_text(messages) \
+            and "[SYNTHESIS]" not in _user_text(messages) \
             and "[CLARIFICATION_ANSWER]" not in "".join(
                 m.get("content") or "" for m in messages):
         print(f"[mock-llm] {role} -> clarify (forced)", flush=True)

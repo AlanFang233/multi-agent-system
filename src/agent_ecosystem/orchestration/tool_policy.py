@@ -73,9 +73,12 @@ def check_and_consume_approval(
     workflow_id: str, node_id: str, agent_id: str,
 ) -> str:
     """Validate an approval and atomically consume it if valid.
-    Returns: 'approved', 'denied', 'expired', 'pending', 'not_found'"""
+    Returns: 'approved' | 'rejected' (human said no / invalid state)
+           | 'mismatch' (binding or arguments differ from what was approved)
+           | 'expired' | 'pending' | 'consumed' | 'not_found'"""
     digest = _digest(arguments)
     conn = sqlite3.connect(db_path, timeout=10)
+    conn.row_factory = sqlite3.Row
 
     row = conn.execute(
         "SELECT * FROM approvals WHERE approval_id=?", (approval_id,)
@@ -86,28 +89,30 @@ def check_and_consume_approval(
     status = row["status"]
     if status == "expired":
         conn.close(); return "expired"
-    if status == "rejected" or status == "cancelled":
-        conn.close(); return "denied"
+    if status in ("rejected", "cancelled"):
+        conn.close(); return "rejected"
     if status == "pending":
         conn.close(); return "pending"
     if status != "approved":
-        conn.close(); return "denied"
+        conn.close(); return "rejected"
 
-    # Validate bindings
+    # Validate bindings — a mismatch means this call is NOT what the human
+    # approved (e.g. a non-deterministic LLM regenerated different arguments):
+    # fail closed and let the caller request a fresh approval.
     if row["argument_digest"] and row["argument_digest"] != digest:
-        conn.close(); return "denied"
+        conn.close(); return "mismatch"
     if row["tool_id"] and row["tool_id"] != tool_id:
-        conn.close(); return "denied"
+        conn.close(); return "mismatch"
     if row["workflow_id"] and row["workflow_id"] != workflow_id:
-        conn.close(); return "denied"
+        conn.close(); return "mismatch"
     if row["node_id"] and row["node_id"] != node_id:
-        conn.close(); return "denied"
+        conn.close(); return "mismatch"
     if row["agent_id"] and row["agent_id"] != agent_id:
-        conn.close(); return "denied"
+        conn.close(); return "mismatch"
 
     # Check consumed_at (single-use)
     if row["consumed_at"] is not None:
-        conn.close(); return "denied"
+        conn.close(); return "consumed"
 
     # CAS consume
     cur = conn.execute(
@@ -116,4 +121,30 @@ def check_and_consume_approval(
     )
     conn.commit()
     conn.close()
-    return "approved" if cur.rowcount == 1 else "denied"
+    return "approved" if cur.rowcount == 1 else "consumed"
+
+
+def find_reusable_approval(
+    db_path: str, *,
+    workflow_id: str, node_id: str, agent_id: str,
+    tool_id: str, arguments: dict,
+) -> tuple[str, str] | None:
+    """Find an unconsumed approval whose 5-way binding matches this exact call.
+
+    Returns ``(approval_id, status)`` or ``None``. Lets a re-blocked node reuse
+    the approval a human already decided on instead of accumulating duplicates
+    (approved rows are preferred over pending ones)."""
+    digest = _digest(arguments)
+    conn = sqlite3.connect(db_path, timeout=10)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        """SELECT approval_id, status FROM approvals
+           WHERE workflow_id=? AND node_id=? AND agent_id=? AND tool_id=?
+             AND argument_digest=? AND consumed_at IS NULL
+             AND status IN ('approved','pending')
+           ORDER BY CASE status WHEN 'approved' THEN 0 ELSE 1 END,
+                    created_at DESC LIMIT 1""",
+        (workflow_id, node_id, agent_id, tool_id, digest),
+    ).fetchone()
+    conn.close()
+    return (row["approval_id"], row["status"]) if row else None

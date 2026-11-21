@@ -1,0 +1,17 @@
+db: /home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/bookings.db exists: True
+rooms: 3 bookings: 17 span: 2026-11-23 .. 2026-11-27
+PASS  confirmed total matches oracle :: 14 vs 14
+PASS  cancelled total matches oracle
+PASS  reserved minutes matches oracle
+PASS  cancel rate matches oracle :: 0.1765
+PASS  inclusive end date (last day only) :: 3 vs 3
+PASS  empty range -> zero usage, no crash
+PASS  cancelled rows add no reserved minutes
+PASS  heatmap slot values Boardroom 2026-11-23
+PASS  heatmap slot values Meeting Room A 2026-11-23
+PASS  heatmap slot values Huddle Room B 2026-11-23
+PASS  mock room payload has exact field names
+PASS  mock totals field names
+PASS  mock under/over flags present
+
+RESULT: ALL CHECKS PASSED

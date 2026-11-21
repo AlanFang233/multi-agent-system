@@ -1,0 +1,108 @@
+{
+  "ground_truth_sql": {
+    "confirmed": 14,
+    "cancelled": 3,
+    "total_minutes": 930,
+    "cancel_rate": 0.17647058823529413,
+    "per_room": {
+      "Boardroom": {
+        "n": 6,
+        "minutes": 510
+      },
+      "Meeting Room A": {
+        "n": 4,
+        "minutes": 270
+      },
+      "Huddle Room B": {
+        "n": 4,
+        "minutes": 150
+      }
+    },
+    "per_day": {
+      "2026-11-23": {
+        "n": 4,
+        "minutes": 270
+      },
+      "2026-11-24": {
+        "n": 3,
+        "minutes": 240
+      },
+      "2026-11-25": {
+        "n": 2,
+        "minutes": 90
+      },
+      "2026-11-26": {
+        "n": 2,
+        "minutes": 180
+      },
+      "2026-11-27": {
+        "n": 3,
+        "minutes": 150
+      }
+    },
+    "busiest_slot_start_min": 570
+  },
+  "api_totals": {
+    "bookings_confirmed": 14,
+    "bookings_cancelled": 3,
+    "reserved_minutes": 930,
+    "reserved_hours": 15.5,
+    "cancellation_rate": 0.17647058823529413
+  },
+  "results": [
+    {
+      "id": "D1",
+      "name": "Confirmed count matches independent SQL",
+      "ok": true,
+      "evidence": "api=14 sql=14"
+    },
+    {
+      "id": "D2",
+      "name": "Cancelled count matches independent SQL",
+      "ok": true,
+      "evidence": "api=3 sql=3"
+    },
+    {
+      "id": "D3",
+      "name": "Total reserved minutes matches independent SQL",
+      "ok": true,
+      "evidence": "api=930 sql=930"
+    },
+    {
+      "id": "D4",
+      "name": "Cancellation rate matches independent SQL",
+      "ok": true,
+      "evidence": "api=0.1765 sql=0.1765"
+    },
+    {
+      "id": "D5",
+      "name": "Per-room bookings/hours match independent SQL",
+      "ok": true,
+      "evidence": "{\"Boardroom\": [6, 8.5], \"Meeting Room A\": [4, 4.5], \"Huddle Room B\": [4, 2.5]}"
+    },
+    {
+      "id": "D6",
+      "name": "Busiest day matches independent SQL",
+      "ok": true,
+      "evidence": "api=2026-11-23 sql=2026-11-23"
+    },
+    {
+      "id": "D7",
+      "name": "Busiest slot matches independent SQL",
+      "ok": true,
+      "evidence": "api=09:30 sql_start_min=570"
+    },
+    {
+      "id": "D8",
+      "name": "Date-range filter works (single day 11-25)",
+      "ok": true,
+      "evidence": "api=2 sql=2"
+    },
+    {
+      "id": "D9",
+      "name": "Live-mode dashboard copy prepared (team files untouched)",
+      "ok": true,
+      "evidence": ""
+    }
+  ]
+}

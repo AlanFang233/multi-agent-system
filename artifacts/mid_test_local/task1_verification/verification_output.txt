@@ -1,0 +1,396 @@
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/verify_bookings.db python main.py show --date 2026-11-23
+[rc=0]
+--- stdout ---
+
+Availability for 2026-11-23:
+
+  Boardroom  (18 of 18 slots free)
+    [ ] 09:00-09:30  free
+    [ ] 09:30-10:00  free
+    [ ] 10:00-10:30  free
+    [ ] 10:30-11:00  free
+    [ ] 11:00-11:30  free
+    [ ] 11:30-12:00  free
+    [ ] 12:00-12:30  free
+    [ ] 12:30-13:00  free
+    [ ] 13:00-13:30  free
+    [ ] 13:30-14:00  free
+    [ ] 14:00-14:30  free
+    [ ] 14:30-15:00  free
+    [ ] 15:00-15:30  free
+    [ ] 15:30-16:00  free
+    [ ] 16:00-16:30  free
+    [ ] 16:30-17:00  free
+    [ ] 17:00-17:30  free
+    [ ] 17:30-18:00  free
+
+  Meeting Room A  (18 of 18 slots free)
+    [ ] 09:00-09:30  free
+    [ ] 09:30-10:00  free
+    [ ] 10:00-10:30  free
+    [ ] 10:30-11:00  free
+    [ ] 11:00-11:30  free
+    [ ] 11:30-12:00  free
+    [ ] 12:00-12:30  free
+    [ ] 12:30-13:00  free
+    [ ] 13:00-13:30  free
+    [ ] 13:30-14:00  free
+    [ ] 14:00-14:30  free
+    [ ] 14:30-15:00  free
+    [ ] 15:00-15:30  free
+    [ ] 15:30-16:00  free
+    [ ] 16:00-16:30  free
+    [ ] 16:30-17:00  free
+    [ ] 17:00-17:30  free
+    [ ] 17:30-18:00  free
+
+  Huddle Room B  (18 of 18 slots free)
+    [ ] 09:00-09:30  free
+    [ ] 09:30-10:00  free
+    [ ] 10:00-10:30  free
+    [ ] 10:30-11:00  free
+    [ ] 11:00-11:30  free
+    [ ] 11:30-12:00  free
+    [ ] 12:00-12:30  free
+    [ ] 12:30-13:00  free
+    [ ] 13:00-13:30  free
+    [ ] 13:30-14:00  free
+    [ ] 14:00-14:30  free
+    [ ] 14:30-15:00  free
+    [ ] 15:00-15:30  free
+    [ ] 15:30-16:00  free
+    [ ] 16:00-16:30  free
+    [ ] 16:30-17:00  free
+    [ ] 17:00-17:30  free
+    [ ] 17:30-18:00  free
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/verify_bookings.db python main.py book --date 2026-11-23 --room Boardroom --start 10:00 --end 11:00 --title Operator verification booking --organiser Operator
+[rc=0]
+--- stdout ---
+SUCCESS: booking #1 confirmed - Boardroom (Operator verification booking) on 2026-11-23, 10:00-11:00 for Operator
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/verify_bookings.db python main.py book --date 2026-11-23 --room Boardroom --start 10:30 --end 11:30 --title Conflicting booking --organiser Mallory
+[rc=1]
+--- stdout ---
+ERROR: Overlap: Boardroom is already booked 10:00-11:00 on 2026-11-23 by Operator (booking #1). Choose another slot or cancel that booking first.
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/verify_bookings.db python main.py book --date 2026-11-23 --room Boardroom --start 11:00 --end 11:30 --title Back-to-back booking --organiser Operator
+[rc=0]
+--- stdout ---
+SUCCESS: booking #2 confirmed - Boardroom (Back-to-back booking) on 2026-11-23, 11:00-11:30 for Operator
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/verify_bookings.db python main.py cancel --id 1
+[rc=0]
+--- stdout ---
+SUCCESS: booking #1 cancelled - Boardroom on 2026-11-23, 10:00-11:00. The slot is now free.
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/verify_bookings.db python main.py show --date 2026-11-23 --room Boardroom
+[rc=0]
+--- stdout ---
+
+Availability for 2026-11-23:
+
+  Boardroom  (17 of 18 slots free)
+    [ ] 09:00-09:30  free
+    [ ] 09:30-10:00  free
+    [ ] 10:00-10:30  free
+    [ ] 10:30-11:00  free
+    [X] 11:00-11:30  TAKEN  - booking #2: Back-to-back booking (Operator)
+    [ ] 11:30-12:00  free
+    [ ] 12:00-12:30  free
+    [ ] 12:30-13:00  free
+    [ ] 13:00-13:30  free
+    [ ] 13:30-14:00  free
+    [ ] 14:00-14:30  free
+    [ ] 14:30-15:00  free
+    [ ] 15:00-15:30  free
+    [ ] 15:30-16:00  free
+    [ ] 16:00-16:30  free
+    [ ] 16:30-17:00  free
+    [ ] 17:00-17:30  free
+    [ ] 17:30-18:00  free
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/verify_bookings.db python main.py book --date 2026-11-23 --room Boardroom --start 10:00 --end 10:30 --title Rebook after cancel --organiser Operator
+[rc=0]
+--- stdout ---
+SUCCESS: booking #3 confirmed - Boardroom (Rebook after cancel) on 2026-11-23, 10:00-10:30 for Operator
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/verify_bookings.db python main.py list --date 2026-11-23
+[rc=0]
+--- stdout ---
+
+ID   Date       Room           Time         Status    Purpose
+1    2026-11-23 Boardroom      10:00-11:00  cancelled Operator verification booking Operator
+3    2026-11-23 Boardroom      10:00-10:30  confirmed Rebook after cancel Operator
+2    2026-11-23 Boardroom      11:00-11:30  confirmed Back-to-back booking Operator
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/demo_rerun.db python demo.py
+[rc=0]
+--- stdout ---
+Demo date (next workday): 2026-11-23
+Database: /tmp/roombook_demo_rcjkyrxz/bookings.db
+
+
+===== WORKFLOW 1: CHECK AVAILABILITY (all rooms) =====
+
+$ python main.py show --date 2026-11-23
+
+Availability for 2026-11-23:
+
+  Boardroom  (18 of 18 slots free)
+    [ ] 09:00-09:30  free
+    [ ] 09:30-10:00  free
+    [ ] 10:00-10:30  free
+    [ ] 10:30-11:00  free
+    [ ] 11:00-11:30  free
+    [ ] 11:30-12:00  free
+    [ ] 12:00-12:30  free
+    [ ] 12:30-13:00  free
+    [ ] 13:00-13:30  free
+    [ ] 13:30-14:00  free
+    [ ] 14:00-14:30  free
+    [ ] 14:30-15:00  free
+    [ ] 15:00-15:30  free
+    [ ] 15:30-16:00  free
+    [ ] 16:00-16:30  free
+    [ ] 16:30-17:00  free
+    [ ] 17:00-17:30  free
+    [ ] 17:30-18:00  free
+
+  Meeting Room A  (18 of 18 slots free)
+    [ ] 09:00-09:30  free
+    [ ] 09:30-10:00  free
+    [ ] 10:00-10:30  free
+    [ ] 10:30-11:00  free
+    [ ] 11:00-11:30  free
+    [ ] 11:30-12:00  free
+    [ ] 12:00-12:30  free
+    [ ] 12:30-13:00  free
+    [ ] 13:00-13:30  free
+    [ ] 13:30-14:00  free
+    [ ] 14:00-14:30  free
+    [ ] 14:30-15:00  free
+    [ ] 15:00-15:30  free
+    [ ] 15:30-16:00  free
+    [ ] 16:00-16:30  free
+    [ ] 16:30-17:00  free
+    [ ] 17:00-17:30  free
+    [ ] 17:30-18:00  free
+
+  Huddle Room B  (18 of 18 slots free)
+    [ ] 09:00-09:30  free
+    [ ] 09:30-10:00  free
+    [ ] 10:00-10:30  free
+    [ ] 10:30-11:00  free
+    [ ] 11:00-11:30  free
+    [ ] 11:30-12:00  free
+    [ ] 12:00-12:30  free
+    [ ] 12:30-13:00  free
+    [ ] 13:00-13:30  free
+    [ ] 13:30-14:00  free
+    [ ] 14:00-14:30  free
+    [ ] 14:30-15:00  free
+    [ ] 15:00-15:30  free
+    [ ] 15:30-16:00  free
+    [ ] 16:00-16:30  free
+    [ ] 16:30-17:00  free
+    [ ] 17:00-17:30  free
+    [ ] 17:30-18:00  free
+
+
+===== WORKFLOW 2: BOOK ROOM =====
+
+$ python main.py book --date 2026-11-23 --room Boardroom --start 10:00 --end 11:00 --title Sprint review --organiser Alice
+SUCCESS: booking #1 confirmed - Boardroom (Sprint review) on 2026-11-23, 10:00-11:00 for Alice
+
+-- Second, non-overlapping booking for the same room succeeds:
+
+$ python main.py book --date 2026-11-23 --room Boardroom --start 11:30 --end 12:00 --title 1:1 --organiser Bob
+SUCCESS: booking #2 confirmed - Boardroom (1:1) on 2026-11-23, 11:30-12:00 for Bob
+
+-- Overlapping booking is REJECTED with a clear error:
+
+$ python main.py book --date 2026-11-23 --room Boardroom --start 10:30 --end 11:30 --title Should fail --organiser Carol
+ERROR: Overlap: Boardroom is already booked 10:00-11:00 on 2026-11-23 by Alice (booking #1). Choose another slot or cancel that booking first.
+[exit code 1]
+
+-- Invalid input cases:
+
+$ python main.py book --date 2026-11-23 --room Ghost Room --start 10:00 --end 11:00
+ERROR: Unknown room 'Ghost Room'. Available rooms: Boardroom, Huddle Room B, Meeting Room A.
+[exit code 1]
+
+$ python main.py book --date 2026-11-23 --room Boardroom --start 11:00 --end 10:00
+ERROR: End time (10:00) must be after start time (11:00).
+[exit code 1]
+
+$ python main.py book --date 2020-01-06 --room Boardroom --start 10:00 --end 11:00
+ERROR: Date 2020-01-06 is in the past (today is 2026-11-20).
+[exit code 1]
+
+$ python main.py book --date 2026-11-23 --room Boardroom --start 08:00 --end 09:30
+ERROR: Bookings must be within working hours 09:00-18:00.
+[exit code 1]
+
+$ python main.py book --date 2026-11-23 --room Boardroom --start 09:00 --end 16:00
+ERROR: Booking too long (420 min) - the maximum is 240 minutes (4 hours).
+[exit code 1]
+
+
+-- Availability now shows the taken slots:
+
+$ python main.py show --date 2026-11-23 --room Boardroom
+
+Availability for 2026-11-23:
+
+  Boardroom  (15 of 18 slots free)
+    [ ] 09:00-09:30  free
+    [ ] 09:30-10:00  free
+    [X] 10:00-10:30  TAKEN  - booking #1: Sprint review (Alice)
+    [X] 10:30-11:00  TAKEN  - booking #1: Sprint review (Alice)
+    [ ] 11:00-11:30  free
+    [X] 11:30-12:00  TAKEN  - booking #2: 1:1 (Bob)
+    [ ] 12:00-12:30  free
+    [ ] 12:30-13:00  free
+    [ ] 13:00-13:30  free
+    [ ] 13:30-14:00  free
+    [ ] 14:00-14:30  free
+    [ ] 14:30-15:00  free
+    [ ] 15:00-15:30  free
+    [ ] 15:30-16:00  free
+    [ ] 16:00-16:30  free
+    [ ] 16:30-17:00  free
+    [ ] 17:00-17:30  free
+    [ ] 17:30-18:00  free
+
+
+===== WORKFLOW 3: CANCEL BOOKING =====
+
+$ python main.py cancel --id 1
+SUCCESS: booking #1 cancelled - Boardroom on 2026-11-23, 10:00-11:00. The slot is now free.
+
+-- The cancelled slot is INSTANTLY free again (must not show as taken):
+
+$ python main.py show --date 2026-11-23 --room Boardroom
+
+Availability for 2026-11-23:
+
+  Boardroom  (17 of 18 slots free)
+    [ ] 09:00-09:30  free
+    [ ] 09:30-10:00  free
+    [ ] 10:00-10:30  free
+    [ ] 10:30-11:00  free
+    [ ] 11:00-11:30  free
+    [X] 11:30-12:00  TAKEN  - booking #2: 1:1 (Bob)
+    [ ] 12:00-12:30  free
+    [ ] 12:30-13:00  free
+    [ ] 13:00-13:30  free
+    [ ] 13:30-14:00  free
+    [ ] 14:00-14:30  free
+    [ ] 14:30-15:00  free
+    [ ] 15:00-15:30  free
+    [ ] 15:30-16:00  free
+    [ ] 16:00-16:30  free
+    [ ] 16:30-17:00  free
+    [ ] 17:00-17:30  free
+    [ ] 17:30-18:00  free
+
+-- Cancelling again reports it is already cancelled:
+
+$ python main.py cancel --id 1
+ERROR: Booking #1 is already cancelled.
+[exit code 1]
+
+-- Cancel by room+date (lookup by alternative key):
+
+$ python main.py cancel --room Boardroom --date 2026-11-23
+SUCCESS: booking #2 cancelled - Boardroom on 2026-11-23, 11:30-12:00. The slot is now free.
+
+-- Cancel an unknown booking id:
+
+$ python main.py cancel --id 999
+ERROR: No booking with id 999.
+[exit code 1]
+
+
+-- Final booking list (cancelled records are kept, not taken):
+
+$ python main.py list
+
+ID   Date       Room           Time         Status    Purpose
+1    2026-11-23 Boardroom      10:00-11:00  cancelled Sprint review Alice
+2    2026-11-23 Boardroom      11:30-12:00  cancelled 1:1 Bob
+
+
+DEMO COMPLETE
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/checks_rerun.db python checks.py
+[rc=0]
+--- stdout ---
+== Session 1: create a booking ==
+SUCCESS: booking #1 confirmed - Huddle Room B (Standup) on 2026-11-23, 14:00-14:30 for Dana
+
+== Session 2 (new connection = restart): read it back ==
+PERSISTENCE OK: booking still present after restart -> [(1, 'Standup', 3)]
+
+== Interactive menu smoke test ==
+MENU OK: showed availability + list, exited cleanly.
+
+ALL CHECKS PASSED
+
+--- stderr ---
+
+
+$ ROOMBOOK_DB=/home/alan/projects/multi-agent-system/artifacts/mid_test_local/task1_verification/boundary_rerun.db python boundary_test.py
+[rc=0]
+--- stdout ---
+=== Boundary tests on 2026-11-23, room Boardroom ===
+
+PASS  T1 baseline 10:00-11:00 booked
+PASS  T2 exact duplicate 10:00-11:00 rejected
+PASS  T3 touching after  11:00-12:00 accepted (back-to-back)
+PASS  T4 touching before 09:30-10:00 accepted (back-to-back)
+PASS  T5 partial overlap left 09:30-10:30 rejected
+PASS  T6 partial overlap right 10:30-11:30 rejected
+PASS  T7 large block 13:00-15:00 booked
+PASS  T8 contained inside (13:30-14:00) rejected
+PASS  T9 containing (12:30-15:30) rejected
+PASS  T10 availability marks exact booked slots taken, boundaries free
+PASS  T11 cancel the 10:00-11:00 block
+PASS  T12 cancelled slot shown free immediately
+PASS  T13 re-book the freed slot 10:00-11:00 after cancellation
+PASS  T14 overlap against the re-booked slot rejected
+PASS  T15 after cancelling all, 18 of 18 slots free
+
+RESULT: 15/15 checks passed
+BOUNDARY SUITE: ALL PASSED
+
+--- stderr ---

@@ -82,6 +82,9 @@ class MemoryDB:
             );
             CREATE INDEX IF NOT EXISTS idx_memories_agent ON long_term_memories(agent_id,status,updated_at);
             """)
+            # Phase 4: evolve memory schema (idempotent, adds 12 columns + 3 tables)
+            from agent_ecosystem.memory.schema_v4 import migrate
+            migrate(conn)
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -182,7 +185,7 @@ class MemoryDB:
                    status: str = "pending") -> str:
         if status not in {"pending","verified","rejected"}:
             raise ValueError("invalid memory status")
-        if kind not in {"episodic","semantic","procedural"}:
+        if kind not in {"episodic","semantic","procedural","working"}:
             raise ValueError("invalid memory kind")
         text = redact(content.strip())[:2000]
         if not text:

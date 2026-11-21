@@ -7,39 +7,39 @@ servers:
     transport: stdio
     command: /bin/bash
     args:
-      - /home/alan_fang/projects/multi-agent-system/scripts/start_filesystem_mcp.sh
+      - $HOME/projects/multi-agent-system/scripts/start_filesystem_mcp.sh
 
   filesystem_code:
     transport: stdio
     command: /bin/bash
     args:
-      - /home/alan_fang/projects/multi-agent-system/scripts/start_code_filesystem_mcp.sh
+      - $HOME/projects/multi-agent-system/scripts/start_code_filesystem_mcp.sh
 
   sandbox:
     transport: stdio
-    command: /home/alan_fang/projects/multi-agent-system/.venv/bin/python
+    command: $HOME/projects/multi-agent-system/.venv/bin/python
     args:
       - -m
       - agent_ecosystem.sandbox_mcp_server
 
   free_search:
     transport: stdio
-    command: /home/alan_fang/.local/bin/uvx
+    command: $HOME/.local/bin/uvx
     args:
       - free-search-mcp
 
   git:
     transport: stdio
-    command: /home/alan_fang/projects/multi-agent-system/.venv/bin/python
+    command: $HOME/projects/multi-agent-system/.venv/bin/python
     args:
       - "-m"
       - "mcp_server_git"
       - "--repository"
-      - "/home/alan_fang/projects/multi-agent-system"
+      - "$HOME/projects/multi-agent-system"
 
   fetch:
     transport: stdio
-    command: /home/alan_fang/projects/multi-agent-system/.venv/bin/python
+    command: $HOME/projects/multi-agent-system/.venv/bin/python
     args:
       - "-m"
       - "mcp_server_fetch"
@@ -71,8 +71,6 @@ permissions:
     - filesystem_code:create_directory
     - git:git_status
     - git:git_diff_unstaged
-    - git:git_status
-    - git:git_diff_unstaged
     - git:git_diff_staged
     - git:git_diff
     - git:git_log
@@ -82,7 +80,6 @@ permissions:
     - sandbox:create
     - sandbox:run_python
     - sandbox:run_pytest
-    
 
   analysis:
     - calculator:add
@@ -90,4 +87,3 @@ permissions:
     - filesystem:get_file_info
     - filesystem:read_multiple_files
     - filesystem:read_file
-

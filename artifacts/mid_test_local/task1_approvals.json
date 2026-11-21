@@ -1,0 +1,173 @@
+[
+  {
+    "approval_id": "approval_f5d3ff1a7bd344bb9d63c2bbeaa9467f",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_a4fe21128d434024a767cea316429939",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/main.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Meeting Room Booking System.\\n\\nA small, menu-driven command line application for a team that used to manage\\nmeeting rooms in a shared spread",
+    "decide_rc": 200,
+    "decided_at": "18:17:15"
+  },
+  {
+    "approval_id": "approval_c65d80257b3f45be8ab037851d4366a4",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_a4fe21128d434024a767cea316429939",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"End-to-end manual run of the three workflows + error handling.\\n\\nDrives main.py exactly like a normal user would (separate CLI invocations),\\nagainst a throwaway demo database, and prints a transcript.\\n\\\"\\\"\\\"\\nimport datetime\\nimport io\\nimport os\\nimport",
+    "decide_rc": 200,
+    "decided_at": "18:17:36"
+  },
+  {
+    "approval_id": "approval_a12164fcfe1746c3a070a92f2e465fb7",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_a4fe21128d434024a767cea316429939",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"demo.py\", \"timeout_seconds\": 60}",
+    "decide_rc": 200,
+    "decided_at": "18:17:51"
+  },
+  {
+    "approval_id": "approval_2f6caf172f5649daba97f623e000088a",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_a4fe21128d434024a767cea316429939",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Verify (a) data survives a restart and (b) the interactive menu works.\\\"\\\"\\\"\\nimport datetime, io, os, sys, tempfile, contextlib\\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\\nimport main\\n\\nd = datetime.date.today() + datetime.timedelta(d",
+    "decide_rc": 200,
+    "decided_at": "18:18:09"
+  },
+  {
+    "approval_id": "approval_fda46ea9de9844df88309fe3807c0edc",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_a4fe21128d434024a767cea316429939",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"checks.py\", \"timeout_seconds\": 60}",
+    "decide_rc": 200,
+    "decided_at": "18:18:24"
+  },
+  {
+    "approval_id": "approval_711106c088a247bcabb8a57a8a510dfb",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_a4fe21128d434024a767cea316429939",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"content\": \"# Meeting Room Booking System\\n\\nA small command-line app that replaces the shared spreadsheet. It prevents\\ndouble bookings and always reflects cancellations.\\n\\n## Requirements\\nPython 3.8+ (standard library only — no install needed).\\n\\n## Start the app\\n\\n    cd <this folder>\\n    p",
+    "decide_rc": 200,
+    "decided_at": "18:18:43"
+  },
+  {
+    "approval_id": "approval_80a24afbb9cc447e9e39dcc419f8ec5e",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"demo.py\", \"timeout_seconds\": 60}",
+    "decide_rc": 200,
+    "decided_at": "18:21:04"
+  },
+  {
+    "approval_id": "approval_57bcd5c44f8e4df9887d2a51bcc28696",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"checks.py\", \"timeout_seconds\": 60}",
+    "decide_rc": 200,
+    "decided_at": "18:21:20"
+  },
+  {
+    "approval_id": "approval_b61a07b494fa4ecea3fa7ea3a7958185",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"sandboxes/258c8916685642f3a261281a8ffde149/boundary_test.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Boundary / edge-case suite for the no-overlap + cancellation rules.\\n\\nTargets exactly the cases the repair task calls out:\\n  * touching intervals (back-to-back) must NOT be treated as ",
+    "decide_rc": 200,
+    "decided_at": "18:21:47"
+  },
+  {
+    "approval_id": "approval_3506683dee8b4db590eef75a8d980027",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"content\": \"placeholder\\n\", \"path\": \"mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/boundary_test.py\"}",
+    "decide_rc": 200,
+    "decided_at": "18:22:02"
+  },
+  {
+    "approval_id": "approval_5fa9ebe0982543c684fc852ca71f4bb4",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"content\": \"placeholder\\n\", \"path\": \"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/boundary_test.py\"}",
+    "decide_rc": 200,
+    "decided_at": "18:22:29"
+  },
+  {
+    "approval_id": "approval_4d8d80b7769d4805b936711187fa414d",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"content\": \"placeholder\\n\", \"path\": \"/home/alan/projects/multi-agent-system/src/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/boundary_test.py\"}",
+    "decide_rc": 200,
+    "decided_at": "18:47:42"
+  },
+  {
+    "approval_id": "approval_49b9bf6c527e409186469b2db7797fbf",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Boundary / edge-case suite for the no-overlap + cancellation rules.\\n\\nTargets exactly the cases the repair task calls out:\\n  * touching intervals (back-to-back) must NOT be treated as overlapping\\n  * full containment (one booking wholly inside another) M",
+    "decide_rc": 200,
+    "decided_at": "18:48:03"
+  },
+  {
+    "approval_id": "approval_cb006cad88b64bdea2baa29d3a213aed",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"script\": \"boundary_test.py\", \"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"timeout_seconds\": 60}",
+    "decide_rc": 200,
+    "decided_at": "18:48:21"
+  },
+  {
+    "approval_id": "approval_13b8c9267d3b4c1e9651f5c79a5c59eb",
+    "tool_id": "filesystem_code:edit_file",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"path\": \"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/boundary_test.py\", \"edits\": [{\"oldText\": \"def slot_free(out, s):\\n    for line in out.splitlines():\\n        st = line.strip()\\n        if st.startswith(\\\"[ \\\") and st.split()[1].startswith(s):\\",
+    "decide_rc": 200,
+    "decided_at": "18:48:39"
+  },
+  {
+    "approval_id": "approval_0ad813da972247548812276693fed401",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"boundary_test.py\", \"timeout_seconds\": 60}",
+    "decide_rc": 200,
+    "decided_at": "18:48:58"
+  },
+  {
+    "approval_id": "approval_deff51e95a5141219c9190783d6e3482",
+    "tool_id": "filesystem_code:edit_file",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"edits\": [{\"newText\": \"t10 = (slot_free(out, \\\"09:30-10:00\\\") is False and slot_free(out, \\\"10:00-10:30\\\") is False\\n       and slot_free(out, \\\"10:30-11:00\\\") is False and slot_free(out, \\\"11:00-11:30\\\") is False\\n       and slot_free(out, \\\"11:30-12:00\\\") is False and slot_free(out, \\\"12:00-12:30",
+    "decide_rc": 200,
+    "decided_at": "18:49:16"
+  },
+  {
+    "approval_id": "approval_a511a89fd2bc416eb64e7d0e847d78c0",
+    "tool_id": "sandbox:run_python",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"sandbox_id\": \"258c8916685642f3a261281a8ffde149\", \"script\": \"boundary_test.py\", \"timeout_seconds\": 60}",
+    "decide_rc": 200,
+    "decided_at": "18:49:31"
+  },
+  {
+    "approval_id": "approval_c9135fe97d7a4d9da7fd8d9be2d42335",
+    "tool_id": "filesystem_code:write_file",
+    "node_id": "node_16bd8bdcbce048ea85c02a16b8656dca",
+    "agent_id": "midtest-software:dev",
+    "summary": "{\"content\": \"# Fix-Defects Report — Meeting Room Booking System\\n\\nNode: fix-defects (wf_f11bf2d264754737867c9e7d325c0cef)\\nInput: verify-system QA verdict.\\n\\n## 1. QA verdict received\\n\\nThe upstream QA report is a **static-only review**. Its own Scope caveat states that the\\nsandbox execution pha",
+    "decide_rc": 200,
+    "decided_at": "18:49:58"
+  }
+]

@@ -1,12 +1,11 @@
 """Offline, no HKGAI/MCP/A2A server needed: python -m pytest -q tests/test_agent_memory.py"""
 import json
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from agent_ecosystem.memory.store import MemoryDB
-from agent_ecosystem.memory.context import ContextManager, ContextLimitError, chars, grouped
+from agent_ecosystem.memory.context import ContextManager, chars, grouped
 from agent_ecosystem.memory.reflection import reflect
 from agent_ecosystem.memory.runner import MemoryToolRegistry, run_tool_loop_with_memory
 
@@ -59,7 +58,10 @@ class FakeClient:
         return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
 
 
-def config_file(tmp_path,max_chars=3000,trigger_chars=2300):
+def config_file(tmp_path,max_chars=9000,trigger_chars=7000):
+    # Budgets must fit the real SYSTEM_PROMPTS (role prompt + dynamic-skill policy
+    # is ~3.6k chars); the old 3000/2300 defaults raised ContextLimitError before
+    # the tested behavior could run.
     f=tmp_path/'memory.yaml'
     f.write_text(f'''
 database: {tmp_path/'memory.sqlite'}
@@ -121,13 +123,13 @@ async def test_actual_loop_compacts_and_stores_raw_result(tmp_path):
     registry=DummyRegistry()
     answer,used=await run_tool_loop_with_memory(
         role='coding',prompt='请检查文件状态',registry=registry,client=client,model='fake',
-        max_rounds=10,task_id='t1',config_path=config_file(tmp_path,max_chars=4000,trigger_chars=2400))
+        max_rounds=10,task_id='t1',config_path=config_file(tmp_path,max_chars=8000,trigger_chars=4000))
     assert answer=='finished' and used==['filesystem:list_directory']*9
     db=MemoryDB(tmp_path/'memory.sqlite')
     ev=db.events('coding','t1')
     assert any(e['event_type']=='context_compacted' for e in ev)
     assert db.stats()['results']==9
-    assert all(chars(c['messages'])+chars(c.get('tools',[]))<=4000 for c in client.calls)
+    assert all(chars(c['messages'])+chars(c.get('tools',[]))<=8000 for c in client.calls)
     assert db.task('coding','t1')['status']=='completed'
     with db.connection() as conn:
         rid=conn.execute('SELECT result_id FROM tool_results LIMIT 1').fetchone()[0]
@@ -136,7 +138,7 @@ async def test_actual_loop_compacts_and_stores_raw_result(tmp_path):
     # Retry a completed task must not invoke the model again.
     again=FakeClient([])
     assert (await run_tool_loop_with_memory(role='coding',prompt='请检查文件状态',registry=registry,
-        client=again,model='fake',task_id='t1',config_path=config_file(tmp_path,max_chars=4000,trigger_chars=2400)))[0]=='finished'
+        client=again,model='fake',task_id='t1',config_path=config_file(tmp_path,max_chars=8000,trigger_chars=4000)))[0]=='finished'
     assert again.calls==[]
 
 

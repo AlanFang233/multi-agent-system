@@ -124,8 +124,17 @@ async def _force_remove(name: str) -> None:
 
 
 async def _execute_docker(workdir: Path, program: list[str], timeout_seconds: int) -> dict:
-    if not isinstance(timeout_seconds, int) or not (1 <= timeout_seconds <= MAX_SECONDS):
-        raise ValueError(f"timeout_seconds must be between 1 and {MAX_SECONDS}")
+    if not isinstance(timeout_seconds, int) or timeout_seconds < 1:
+        raise ValueError(
+            f"timeout_seconds must be a positive integer (got {timeout_seconds!r})")
+    clamped_from = None
+    if timeout_seconds > MAX_SECONDS:
+        # LLMs routinely request more than the safety cap; the old opaque
+        # hard-fail ("Error executing tool ...") sent agents into long
+        # misdiagnosis loops (Mid_Test bug #10). Clamp to the cap and surface
+        # the adjustment in the result instead of failing the call.
+        clamped_from = timeout_seconds
+        timeout_seconds = MAX_SECONDS
     if shutil.which("docker") is None:
         raise RuntimeError("Docker CLI unavailable; start Docker Desktop and enable WSL integration")
 
@@ -158,7 +167,7 @@ async def _execute_docker(workdir: Path, program: list[str], timeout_seconds: in
     (stdout, out_truncated), (stderr, err_truncated) = await asyncio.gather(
         stdout_task, stderr_task
     )
-    return {
+    result = {
         "success": not timed_out and proc.returncode == 0,
         "exit_code": None if timed_out else proc.returncode,
         "timed_out": timed_out,
@@ -167,6 +176,11 @@ async def _execute_docker(workdir: Path, program: list[str], timeout_seconds: in
         "stdout_truncated": out_truncated,
         "stderr_truncated": err_truncated,
     }
+    if clamped_from is not None:
+        result["timeout_note"] = (
+            f"timeout_seconds={clamped_from} exceeded the sandbox cap; "
+            f"clamped to {MAX_SECONDS}s")
+    return result
 
 
 @mcp.tool()

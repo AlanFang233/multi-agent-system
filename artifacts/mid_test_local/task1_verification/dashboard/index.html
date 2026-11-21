@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meeting Room Utilisation Dashboard</title>
+<style>
+  :root { --brand:#2563eb; --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f8fafc; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:16px 20px; }
+  header h1 { margin:0 0 2px; font-size:18px; }
+  header p { margin:0; color:var(--muted); font-size:12px; }
+  main { padding:20px; max-width:1200px; margin:0 auto; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:16px; }
+  .field { display:flex; flex-direction:column; gap:4px; }
+  .field label { font-size:12px; color:var(--muted); }
+  input[type=date], select, button { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .presets { display:flex; gap:6px; flex-wrap:wrap; }
+  .presets button.active { background:var(--brand); color:#fff; border-color:var(--brand); }
+  .status { margin-bottom:12px; font-size:13px; }
+  .status.error { color:#b91c1c; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .card .k { font-size:12px; color:var(--muted); }
+  .card .v { font-size:22px; font-weight:600; margin-top:2px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .chart-title { font-weight:600; font-size:13px; margin-bottom:8px; }
+  .chart { width:100%; height:auto; display:block; }
+  .empty { color:var(--muted); font-size:13px; padding:8px 0; }
+  .heatmap { border-collapse:collapse; font-size:10px; width:100%; }
+  .heatmap th, .heatmap td { border:1px solid #fff; padding:3px 2px; text-align:center; min-width:16px; }
+  .heatmap th { color:var(--muted); font-weight:500; }
+  .legend { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); margin-top:6px; }
+  .legend i { width:14px; height:10px; display:inline-block; }
+  .data-table { border-collapse:collapse; width:100%; font-size:13px; }
+  .data-table th, .data-table td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; }
+  .data-table th { color:var(--muted); font-weight:500; }
+  .flag { font-size:11px; padding:1px 6px; border-radius:999px; }
+  .flag.over { background:#fee2e2; color:#b91c1c; }
+  .flag.under { background:#fef3c7; color:#92400e; }
+  .flag.ok { background:#dcfce7; color:#166534; }
+  .bar-track { background:#eef2ff; border-radius:6px; height:10px; overflow:hidden; }
+  .bar-fill { height:100%; background:var(--brand); }
+  .spinner { width:18px; height:18px; border:3px solid #dbeafe; border-top-color:var(--brand); border-radius:50%; display:inline-block; vertical-align:-3px; margin-right:6px; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @media (max-width:520px){ header h1{font-size:16px} .card .v{font-size:18px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Meeting Room Utilisation Dashboard</h1>
+  <p>Read-only analytics for the room manager &middot; working hours 09:00&ndash;18:00 Mon&ndash;Fri (Asia/Hong_Kong)</p>
+</header>
+<main>
+  <section class="toolbar" aria-label="Filters">
+    <div class="field">
+      <label for="start">From</label>
+      <input type="date" id="start" />
+    </div>
+    <div class="field">
+      <label for="end">To</label>
+      <input type="date" id="end" />
+    </div>
+    <div class="field">
+      <label>Quick range</label>
+      <div class="presets" id="presets">
+        <button data-preset="week">This week</button>
+        <button data-preset="month">This month</button>
+        <button data-preset="all">All data</button>
+        <button data-preset="custom">Custom</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="room">Room (optional)</label>
+      <select id="room"><option value="">All rooms</option></select>
+    </div>
+    <div class="field">
+      <button id="apply">Apply</button>
+    </div>
+  </section>
+
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+
+  <section id="kpis" class="cards" aria-label="Summary totals"></section>
+
+  <section class="grid">
+    <div class="panel" id="p-slot"></div>
+    <div class="panel" id="p-roomfreq"></div>
+    <div class="panel" id="p-roomtime"></div>
+    <div class="panel" id="p-days"></div>
+    <div class="panel" id="p-weekday"></div>
+    <div class="panel" id="p-cancel"></div>
+  </section>
+
+  <section class="panel" style="margin-top:16px" id="p-summary" aria-label="Utilisation summary"></section>
+</main>
+
+<script src="dashboard.js"></script>
+<script>
+(function () {
+  var D = window.BookingDashboard;
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { data: null, range: { start_date: "", end_date: "" }, roomId: null };
+
+  function fmtPct(x) { return (x * 100).toFixed(1) + "%"; }
+
+  // Build the weekday x hour matrix (rows Mon..Fri, cols 09:00..17:30) from by_slot/by_day.
+  function heatmapMatrix(input, range) {
+    var hours = [], m;
+    for (m = 540; m < 1080; m += 30) hours.push(D.minutesToLabel(m));
+    var grid = [[], [], [], [], []]; var i, j;
+    for (i = 0; i < 5; i++) for (j = 0; j < hours.length; j++) grid[i][j] = 0;
+    (input.bookings || []).forEach(function (b) {
+      if (b.status !== "confirmed") return;
+      if (b.date < range.start_date || b.date > range.end_date) return;
+      if (state.roomId != null && b.room_id !== state.roomId) return;
+      var wIdx = new Date(b.date + "T00:00:00").getDay() - 1;
+      if (wIdx < 0 || wIdx > 4) return;
+      for (var t = b.start_min; t < b.end_min; t += 30) {
+        var col = (t - 540) / 30; if (col >= 0 && col < hours.length) grid[wIdx][col]++;
+      }
+    });
+    return { grid: grid, hours: hours };
+  }
+
+  function setStatus(msg, isErr) {
+    var s = $("status");
+    if (!msg) { s.innerHTML = ""; s.className = "status"; return; }
+    s.className = "status" + (isErr ? " error" : "");
+    s.innerHTML = msg;
+  }
+
+  function setLoading(on) {
+    if (on) setStatus('<span class="spinner" aria-hidden="true"></span>Loading dashboard…');
+  }
+
+  function applyPreset(name) {
+    var now = new Date(), s, e;
+    if (name === "week") {
+      var diff = (now.getDay() + 6) % 7; s = new Date(now); s.setDate(now.getDate() - diff);
+      e = new Date(s); e.setDate(s.getDate() + 4);
+    } else if (name === "month") {
+      s = new Date(now.getFullYear(), now.getMonth(), 1);
+      e = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    } else if (name === "all") {
+      s = new Date(minDate); e = new Date(maxDate);
+    } else { return; }
+    $("start").value = iso(s); $("end").value = iso(e);
+  }
+  function iso(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+
+  var minDate, maxDate;
+
+  function currentRange() { return { start_date: $("start").value, end_date: $("end").value }; }
+
+  function renderAll() {
+    var input = state.data;
+    var range = state.range;
+    var agg = D.aggregate(input, range, state.roomId);
+    var scope = state.roomId != null ? (agg.rooms[0] ? agg.rooms[0].room_name : "room") : "all rooms";
+
+    // KPIs
+    var k = [
+      ["Confirmed bookings", agg.totals.bookings_confirmed],
+      ["Reserved time (h)", agg.totals.reserved_hours],
+      ["Cancellations", agg.totals.bookings_cancelled],
+      ["Cancellation rate", fmtPct(agg.totals.cancellation_rate)],
+      ["Workdays in range", agg.meta.workdays]
+    ];
+    $("kpis").innerHTML = k.map(function (p) {
+      return '<div class="card"><div class="k">' + p[0] + '</div><div class="v">' + p[1] + '</div></div>';
+    }).join("");
+
+    // Per-room booking frequency (bar, count)
+    D.barChart($("p-roomfreq"), {
+      title: "Bookings per room (confirmed count) — " + scope,
+      unit: "bookings", yLabel: "Bookings",
+      data: agg.rooms.map(function (r) { return { label: r.room_name, value: r.bookings_confirmed }; })
+    });
+
+    // Total reserved time per room (bar, hours)
+    D.barChart($("p-roomtime"), {
+      title: "Total reserved time per room (hours) — " + scope,
+      unit: "h", color: "#0f766e", yLabel: "Reserved time",
+      data: agg.rooms.map(function (r) { return { label: r.room_name, value: r.reserved_hours }; })
+    });
+
+    // Busiest days (bar of bookings per day; line if many points)
+    var dayData = agg.by_day.map(function (d) { return { label: d.date.slice(5), value: d.bookings_confirmed }; });
+    if (dayData.length > 14) {
+      D.lineChart($("p-days"), { title: "Bookings per day — " + scope, yLabel: "Bookings/day", data: dayData });
+    } else {
+      D.barChart($("p-days"), { title: "Bookings per day — " + scope, unit: "bookings", yLabel: "Bookings/day", color: "#7c3aed", data: dayData });
+    }
+
+    // Busiest times (weekday x hour heatmap)
+    var hm = heatmapMatrix(input, range);
+    D.heatmap($("p-slot"), { title: "Busiest times — weekday × hour (confirmed bookings covering each 30-min slot)", grid: hm.grid, hours: hm.hours });
+
+    // Weekday totals (bar)
+    D.barChart($("p-weekday"), {
+      title: "Bookings by weekday — " + scope, unit: "bookings", color: "#b45309", yLabel: "Bookings",
+      data: agg.by_weekday.map(function (w) { return { label: w.weekday, value: w.bookings_confirmed }; })
+    });
+
+    // Cancellations (bar: confirmed vs cancelled) + rate table
+    var c = agg.totals;
+    D.barChart($("p-cancel"), {
+      title: "Cancellations — " + scope, unit: "bookings", color: "#dc2626", yLabel: "Bookings",
+      data: [{ label: "Confirmed", value: c.bookings_confirmed }, { label: "Cancelled", value: c.bookings_cancelled }]
+    });
+    var t = document.createElement("div"); t.style.marginTop = "10px"; $("p-cancel").appendChild(t);
+    D.renderTable(t,
+      [{ key: "room_name", label: "Room" }, { key: "bookings_cancelled", label: "Cancelled" }, { key: "canc_rate", label: "Rate" }],
+      agg.rooms.map(function (r) { return { room_name: r.room_name, bookings_cancelled: r.bookings_cancelled, canc_rate: fmtPct(r.cancellation_rate) }; })
+    );
+
+    // Summary: most/least used rooms with utilisation %, flags, bars
+    function row(r) {
+      var flag = r.over_utilised ? '<span class="flag over">over-utilised</span>'
+               : r.under_utilised ? '<span class="flag under">under-utilised</span>'
+               : '<span class="flag ok">ok</span>';
+      return "<tr><td>" + r.room_name + "</td><td>" + fmtPct(r.utilisation) + "</td>" +
+        '<td><div class="bar-track"><div class="bar-fill" style="width:' + Math.min(100, r.utilisation * 100).toFixed(1) + '%"></div></div></td>' +
+        "<td>" + flag + "</td></tr>";
+    }
+    var ordered = agg.rooms.slice().sort(function (a, b) { return b.utilisation - a.utilisation; });
+    var html = '<div class="chart-title">Utilisation summary (most used vs least used rooms)</div>' +
+      '<table class="data-table"><thead><tr><th>Room</th><th>Utilisation</th><th></th><th>Flag</th></tr></thead><tbody>' +
+      ordered.map(row).join("") + "</tbody></table>" +
+      '<p class="empty">Utilisation = reserved minutes ÷ (workdays in range × 540). Flags: under &lt; 25%, ok 25–80%, over &gt; 80%.</p>';
+    $("p-summary").innerHTML = html;
+  }
+
+  function load() {
+    setLoading(true);
+    D.fetchData().then(function (payload) {
+      state.data = payload;
+      var dates = (payload.bookings || []).map(function (b) { return b.date; }).sort();
+      minDate = dates[0] || iso(new Date());
+      maxDate = dates[dates.length - 1] || iso(new Date());
+      var startInput = $("start"), endInput = $("end");
+      if (!startInput.value) { startInput.min = minDate; startInput.max = maxDate; startInput.value = minDate; }
+      if (!endInput.value) { endInput.min = minDate; endInput.max = maxDate; endInput.value = maxDate; }
+      // room dropdown from data
+      var sel = $("room");
+      sel.innerHTML = '<option value="">All rooms</option>' + (payload.rooms || []).map(function (r) {
+        return '<option value="' + r.id + '">' + r.name + "</option>";
+      }).join("");
+      state.range = currentRange();
+      setStatus(payload.bookings && payload.bookings.length
+        ? "Showing " + payload.bookings.length + " booking records (" + D.CONFIG.mode + " data)."
+        : "No booking records available for the default range.", false);
+      renderAll();
+    }).catch(function (err) {
+      setStatus("Could not load dashboard data: " + err.message + ". Check the data endpoint and try again.", true);
+    });
+  }
+
+  // events
+  $("presets").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle("active", c === b); });
+    applyPreset(b.dataset.preset);
+    if (b.dataset.preset !== "custom") { state.range = currentRange(); renderAll(); }
+  });
+  $("apply").addEventListener("click", function () { state.range = currentRange(); renderAll(); });
+  $("start").addEventListener("change", function () { $("end").min = $("start").value; });
+  $("room").addEventListener("change", function () {
+    state.roomId = $("room").value === "" ? null : parseInt($("room").value, 10);
+    renderAll();
+  });
+
+  document.addEventListener("DOMContentLoaded", load);
+  if (document.readyState !== "loading") load();
+})();
+</script>
+</body>
+</html>

@@ -7,6 +7,7 @@ Gateway or an authenticated identity provider.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,12 @@ import yaml
 from jsonschema import validate
 from mcp import Client
 from mcp.client.stdio import StdioServerParameters
+
+
+def _expand(value: Any) -> str:
+    """Expand ``$VAR``/``${VAR}`` and ``~`` in stdio command/args so the registry
+    config stays portable across machines instead of hardcoding one user's home."""
+    return os.path.expandvars(os.path.expanduser(str(value)))
 
 
 @dataclass(frozen=True)
@@ -41,8 +48,8 @@ class ToolRegistry:
         if cfg.get("transport") == "stdio":
             return Client(
                 StdioServerParameters(
-                    command=cfg["command"],
-                    args=cfg.get("args", []),
+                    command=_expand(cfg["command"]),
+                    args=[_expand(a) for a in cfg.get("args", [])],
                     env=cfg.get("env"),
                 )
             )

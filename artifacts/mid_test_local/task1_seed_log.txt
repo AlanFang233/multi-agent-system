@@ -1,0 +1,46 @@
+$ main.py book --date 2026-11-23 --room Boardroom --start 09:00 --end 10:00 --title Sprint planning --organiser Alice
+  rc=0 out=SUCCESS: booking #1 confirmed - Boardroom (Sprint planning) on 2026-11-23, 09:00-10:00 for Alice
+$ main.py book --date 2026-11-23 --room Boardroom --start 14:00 --end 16:00 --title Design review --organiser Bob
+  rc=0 out=SUCCESS: booking #2 confirmed - Boardroom (Design review) on 2026-11-23, 14:00-16:00 for Bob
+$ main.py book --date 2026-11-23 --room Meeting Room A --start 10:00 --end 11:00 --title 1:1 Carol/Alice --organiser Carol
+  rc=0 out=SUCCESS: booking #3 confirmed - Meeting Room A (1:1 Carol/Alice) on 2026-11-23, 10:00-11:00 for Carol
+$ main.py book --date 2026-11-23 --room Huddle Room B --start 09:30 --end 10:00 --title Team standup --organiser Dana
+  rc=0 out=SUCCESS: booking #4 confirmed - Huddle Room B (Team standup) on 2026-11-23, 09:30-10:00 for Dana
+$ main.py book --date 2026-11-24 --room Boardroom --start 10:00 --end 12:00 --title Roadmap workshop --organiser Alice
+  rc=0 out=SUCCESS: booking #5 confirmed - Boardroom (Roadmap workshop) on 2026-11-24, 10:00-12:00 for Alice
+$ main.py book --date 2026-11-24 --room Meeting Room A --start 13:00 --end 14:00 --title Client call --organiser Eve
+  rc=0 out=SUCCESS: booking #6 confirmed - Meeting Room A (Client call) on 2026-11-24, 13:00-14:00 for Eve
+$ main.py book --date 2026-11-24 --room Meeting Room A --start 15:00 --end 16:30 --title Interview panel --organiser Frank
+  rc=0 out=SUCCESS: booking #7 confirmed - Meeting Room A (Interview panel) on 2026-11-24, 15:00-16:30 for Frank
+$ main.py book --date 2026-11-24 --room Huddle Room B --start 09:30 --end 10:00 --title Team standup --organiser Dana
+  rc=0 out=SUCCESS: booking #8 confirmed - Huddle Room B (Team standup) on 2026-11-24, 09:30-10:00 for Dana
+$ main.py book --date 2026-11-25 --room Boardroom --start 09:00 --end 09:30 --title Quick sync --organiser Bob
+  rc=0 out=SUCCESS: booking #9 confirmed - Boardroom (Quick sync) on 2026-11-25, 09:00-09:30 for Bob
+$ main.py book --date 2026-11-25 --room Meeting Room A --start 11:00 --end 12:00 --title Demo prep --organiser Carol
+  rc=0 out=SUCCESS: booking #10 confirmed - Meeting Room A (Demo prep) on 2026-11-25, 11:00-12:00 for Carol
+$ main.py book --date 2026-11-25 --room Huddle Room B --start 14:00 --end 15:00 --title Vendor demo --organiser Eve
+  rc=0 out=SUCCESS: booking #11 confirmed - Huddle Room B (Vendor demo) on 2026-11-25, 14:00-15:00 for Eve
+$ main.py book --date 2026-11-26 --room Boardroom --start 13:00 --end 15:00 --title Architecture review --organiser Frank
+  rc=0 out=SUCCESS: booking #12 confirmed - Boardroom (Architecture review) on 2026-11-26, 13:00-15:00 for Frank
+$ main.py book --date 2026-11-26 --room Meeting Room A --start 09:00 --end 10:30 --title Onboarding training --organiser Alice
+  rc=0 out=SUCCESS: booking #13 confirmed - Meeting Room A (Onboarding training) on 2026-11-26, 09:00-10:30 for Alice
+$ main.py book --date 2026-11-26 --room Huddle Room B --start 16:00 --end 17:00 --title Retro --organiser Dana
+  rc=0 out=SUCCESS: booking #14 confirmed - Huddle Room B (Retro) on 2026-11-26, 16:00-17:00 for Dana
+$ main.py book --date 2026-11-27 --room Boardroom --start 10:00 --end 11:00 --title All-hands prep --organiser Bob
+  rc=0 out=SUCCESS: booking #15 confirmed - Boardroom (All-hands prep) on 2026-11-27, 10:00-11:00 for Bob
+$ main.py book --date 2026-11-27 --room Meeting Room A --start 14:00 --end 15:00 --title Release review --organiser Carol
+  rc=0 out=SUCCESS: booking #16 confirmed - Meeting Room A (Release review) on 2026-11-27, 14:00-15:00 for Carol
+$ main.py book --date 2026-11-27 --room Huddle Room B --start 09:30 --end 10:00 --title Team standup --organiser Dana
+  rc=0 out=SUCCESS: booking #17 confirmed - Huddle Room B (Team standup) on 2026-11-27, 09:30-10:00 for Dana
+$ main.py cancel --id 6
+  rc=0 out=SUCCESS: booking #6 cancelled - Meeting Room A on 2026-11-24, 13:00-14:00. The slot is now free.
+$ main.py cancel --id 11
+  rc=0 out=SUCCESS: booking #11 cancelled - Huddle Room B on 2026-11-25, 14:00-15:00. The slot is now free.
+$ main.py cancel --id 13
+  rc=0 out=SUCCESS: booking #13 cancelled - Meeting Room A on 2026-11-26, 09:00-10:30. The slot is now free.
+$ main.py list
+  rc=0 out=ID   Date       Room           Time         Status    Purpose
+1    2026-11-23 Boardroom      09:00-10:00  confirmed Sprint planning Alice
+2    2026-11-23 Boardroom      14:00-16:00
+
+DB: /home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/258c8916685642f3a261281a8ffde149/bookings.db exists=True size=24576

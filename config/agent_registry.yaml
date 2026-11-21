@@ -1,19 +1,7 @@
 # Developer-controlled local Agent registry (not an MCP server registry).
-agents:
-  research:
-    url: http://127.0.0.1:8001
-    description: 文献研究、信息检索、综合报告
-  coding:
-    url: http://127.0.0.1:8002
-    description: Git 状态检查、代码分析、软件开发
-  analysis:
-    url: http://127.0.0.1:8003
-    description: 数据统计、指标计算、数值分析
-
-# Begin with a DAG: research can call coding. This prevents endless ping-pong.
-# Once Analysis Agent is running, allow research: [coding, analysis],
-# and optionally coding: [analysis]. Avoid cycles.
-
+# NOTE: this file previously contained two top-level `agents:` keys; PyYAML kept
+# only the second (capability-based) block, so the first block was dead config
+# and has been removed without behavior change.
 agents:
   research:
     url: http://127.0.0.1:8001
@@ -44,5 +32,3 @@ policy:
   max_hops: 2
   max_delegations_per_task: 3
   timeout_seconds: 120
-
-    

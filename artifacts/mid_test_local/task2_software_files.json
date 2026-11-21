@@ -1,0 +1,14 @@
+{
+  "workspaces": [
+    "/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/545ca177834147ce83f7f458880b5249",
+    "/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/689fb67cadc248c28dbb89ba1e641c62",
+    "/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/7002b5929dea4b0c81c41570be4e5a53",
+    "/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/7a0b4bb99b144716b93938c09ed2e9f9",
+    "/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/db97156c6d9644c886c415fbcd110cd7",
+    "/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/ed20dc16bad741b5be165da0631ab396"
+  ],
+  "copied": [
+    "task2_software/db97156c6d9644c886c415fbcd110cd7/probe.py",
+    "task2_software/545ca177834147ce83f7f458880b5249/probe_ok.py"
+  ]
+}

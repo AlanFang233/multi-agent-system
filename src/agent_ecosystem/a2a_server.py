@@ -19,7 +19,7 @@ from starlette.routing import Route
 
 from agent_ecosystem.settings import get_settings
 from agent_ecosystem.tool_agent import ask_with_tools
-from agent_ecosystem.a2a_delegate import delegate_to_coding
+from agent_ecosystem.orchestration.suspension import WorkflowSuspension
 
 
 PROMPTS = {
@@ -81,9 +81,63 @@ PROMPTS = {
 }
 
 
+def _workflow_context(raw_metadata: dict) -> dict:
+    """Extract Phase 2+3 x-workflow fields; tolerant of absent/invalid data."""
+    meta = raw_metadata.get("x-workflow", {})
+    if not isinstance(meta, dict):
+        return {}
+    out: dict = {}
+    task_id = meta.get("task_id")
+    if isinstance(task_id, str) and task_id:
+        out["task_id"] = task_id
+    parent = meta.get("parent_task_id")
+    if isinstance(parent, str) and parent:
+        out["parent_task_id"] = parent
+    budget = meta.get("budget")
+    if isinstance(budget, dict):
+        max_tools = budget.get("max_tool_calls")
+        if isinstance(max_tools, (int, float)) and not isinstance(max_tools, bool):
+            if max_tools == int(max_tools) and max_tools > 0:
+                out["max_tool_calls"] = int(max_tools)
+    # Phase 3: HITL approval token injection
+    tokens = meta.get("approval_tokens")
+    if isinstance(tokens, list) and tokens:
+        tok = tokens[0]
+        if isinstance(tok, dict):
+            aid = tok.get("approval_id")
+            if isinstance(aid, str) and aid:
+                out["approval_id"] = aid
+    # Phase 3: clarification answer re-injection on node resume
+    answer = meta.get("clarification_answer")
+    if isinstance(answer, str) and answer:
+        out["clarification_answer"] = answer
+    return out
+
+
+def _normalize_metadata(message) -> dict:
+    """Return A2A message metadata as a plain dict.
+
+    a2a-sdk>=1.3 deserializes incoming JSON ``metadata`` into a protobuf
+    ``Struct`` which has no ``.get()``; other/older paths may hand a plain dict.
+    Normalize both shapes so downstream ``x-agent-delegation`` parsing works.
+    Empty/None metadata yields ``{}``.
+    """
+    raw = getattr(message, "metadata", None)
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    from google.protobuf.json_format import MessageToDict
+    try:
+        return MessageToDict(raw)
+    except Exception:
+        return {}
+
+
 class RoleExecutor(AgentExecutor):
-    def __init__(self, role: str):
+    def __init__(self, role: str, *, role_prompt_override: str | None = None):
         self.role = role
+        self.role_prompt_override = role_prompt_override
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.current_task:
@@ -97,7 +151,7 @@ class RoleExecutor(AgentExecutor):
         await updater.update_status(state=TaskState.TASK_STATE_WORKING)
         prompt = get_message_text(context.message) or "Hello"
         
-        raw_metadata = getattr(context.message, "metadata", None) or {}
+        raw_metadata = _normalize_metadata(context.message)
 
         delegation_meta = raw_metadata.get("x-agent-delegation", {})
 
@@ -106,6 +160,22 @@ class RoleExecutor(AgentExecutor):
 
         delegation_route = delegation_meta.get("route")
         delegation_trace_id = delegation_meta.get("trace_id")
+
+        # Phase 2 workflow context (backward compatible: absent -> legacy path).
+        wf_context = _workflow_context(raw_metadata)
+        wf_task_id = wf_context.get("task_id")
+        wf_parent = wf_context.get("parent_task_id")
+        wf_max_tools = wf_context.get("max_tool_calls")
+        wf_approval_id = wf_context.get("approval_id")
+        wf_clarification_answer = wf_context.get("clarification_answer")
+        if wf_task_id:
+            workflow_meta = raw_metadata.get("x-workflow") or {}
+            print(
+                f"[Workflow 节点] wf={workflow_meta.get('workflow_id')} "
+                f"node={workflow_meta.get('node_id')} attempt={workflow_meta.get('attempt')} "
+                f"task={wf_task_id}",
+                flush=True,
+            )
         settings = get_settings()
         try:
             if settings.openai_api_key:  
@@ -121,6 +191,12 @@ class RoleExecutor(AgentExecutor):
                                     prompt=prompt,
                                     delegation_route=delegation_route,
                                     delegation_trace_id=delegation_trace_id,
+                                    task_id=wf_task_id,
+                                    parent_task_id=wf_parent,
+                                    max_tool_calls=wf_max_tools,
+                                    approval_id=wf_approval_id,
+                                    clarification_answer=wf_clarification_answer,
+                                    system_prompt_override=self.role_prompt_override,
                                 )
 
 
@@ -130,6 +206,16 @@ class RoleExecutor(AgentExecutor):
                 parts=[new_text_part(text=answer, media_type="text/plain")]
             )
             await updater.update_status(state=TaskState.TASK_STATE_COMPLETED)
+        except WorkflowSuspension as suspension:
+            # Phase 3: high-risk tool needs human approval
+            import json as _json
+            payload = _json.dumps({"suspend": suspension.kind, **suspension.details},
+                                  ensure_ascii=False, default=str)
+            await updater.add_artifact(
+                parts=[new_text_part(text=payload, media_type="application/json")]
+            )
+            await updater.update_status(state=TaskState.TASK_STATE_INPUT_REQUIRED)
+            print(f"[HITL] {suspension.kind}: {suspension.reason}", flush=True)
         except Exception:
             # In production: record structured error details privately and persist retry status.
             await updater.update_status(state=TaskState.TASK_STATE_FAILED)
@@ -139,7 +225,7 @@ class RoleExecutor(AgentExecutor):
         raise NotImplementedError("Cancellation is not implemented in the starter")
 
 
-def create_app(role: str, advertised_url: str) -> Starlette:
+def create_app(role: str, advertised_url: str, *, role_prompt_override: str | None = None) -> Starlette:
     card = AgentCard(
         name=f"{role.title()} Agent",
         description=f"Local {role} agent; initial A2A demonstration",
@@ -164,7 +250,7 @@ def create_app(role: str, advertised_url: str) -> Starlette:
         ],
     )
     handler = DefaultRequestHandler(
-        agent_executor=RoleExecutor(role),
+        agent_executor=RoleExecutor(role, role_prompt_override=role_prompt_override),
         task_store=InMemoryTaskStore(),
         agent_card=card,
     )
@@ -182,17 +268,44 @@ def create_app(role: str, advertised_url: str) -> Starlette:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--name", choices=list(PROMPTS), required=True)
+    parser.add_argument("--name", choices=list(PROMPTS), required=False)
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--group-id", default=None)
+    parser.add_argument("--role-name", default=None)
     args = parser.parse_args()
+
+    # Dynamic group agent: load role config from orchestration DB
+    role = args.name or (args.role_name or "research")
+    role_prompt_override = None
+    if args.group_id and args.role_name:
+        # Namespace the role so memory/permissions never collide across groups
+        role = f"{args.group_id}:{args.role_name}"
+        try:
+            from agent_ecosystem.orchestration.group_service import GroupService
+            gs = GroupService()
+            group = gs.get_group(args.group_id)
+            if group:
+                for a in group.agents:
+                    if a.agent_id == role:
+                        role_prompt_override = a.role_prompt
+                        print(f"[Group Agent] {role} loaded from group {args.group_id}",
+                              flush=True)
+                        break
+        except Exception as e:
+            print(f"[Group Agent] WARNING: could not load group config: {e}", flush=True)
+        if role_prompt_override is None:
+            print(f"[Group Agent] WARNING: no role prompt found for {role}; "
+                  "agent will refuse tasks (unknown role)", flush=True)
+
     settings = get_settings()
     urls = {
         "research": settings.research_agent_url,
         "coding": settings.coding_agent_url,
         "analysis": settings.analysis_agent_url,
     }
-    app = create_app(args.name, urls[args.name])
+    advertised = urls.get(role, f"http://{args.host}:{args.port}")
+    app = create_app(role, advertised, role_prompt_override=role_prompt_override)
     uvicorn.run(app, host=args.host, port=args.port)
 
 

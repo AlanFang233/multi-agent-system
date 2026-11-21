@@ -1,0 +1,19 @@
+SELF-TESTS: all passed
+store span: 2026-11-23 .. 2026-11-27 | rooms: 3 | bookings: 17
+
+=== [1] BUSY range 2026-11-23..2026-11-27 -> 200 OK ===
+totals: {"bookings_confirmed": 14, "bookings_cancelled": 3, "reserved_minutes": 930, "reserved_hours": 15.5, "cancellation_rate": 0.17647058823529413}
+  room Boardroom        confirmed=  6 cancelled= 0 reserved_h=   8.5 util=0.189
+  room Meeting Room A   confirmed=  4 cancelled= 2 reserved_h=   4.5 util=0.100
+  room Huddle Room B    confirmed=  4 cancelled= 1 reserved_h=   2.5 util=0.056
+busiest days  : [{"date": "2026-11-23", "bookings_confirmed": 4, "reserved_minutes": 270, "bookings_cancelled": 0}, {"date": "2026-11-24", "bookings_confirmed": 3, "reserved_minutes": 240, "bookings_cancelled": 1}, {"date": "2026-11-27", "bookings_confirmed": 3, "reserved_minutes": 150, "bookings_cancelled": 0}]
+busiest slots : [{"start_min": 570, "slot_label": "09:30", "bookings_confirmed": 4}, {"start_min": 600, "slot_label": "10:00", "bookings_confirmed": 3}, {"start_min": 630, "slot_label": "10:30", "bookings_confirmed": 3}]
+payload shape : ['by_day', 'by_slot', 'by_weekday', 'meta', 'rankings', 'rooms', 'summary', 'totals']
+
+=== [2] QUIET/EMPTY range 1990-01-01..1990-01-05 -> 200 OK ===
+totals: {"bookings_confirmed": 0, "bookings_cancelled": 0, "reserved_minutes": 0, "reserved_hours": 0.0, "cancellation_rate": 0.0}
+by_day: []
+rooms: [{"room_id": 1, "room_name": "Boardroom", "capacity": 12, "bookings_confirmed": 0, "bookings_cancelled": 0, "reserved_minutes": 0, "reserved_hours": 0.0, "utilisation": 0.0, "cancellation_rate": 0.0, "under_utilised": true, "over_utilised": false}, {"room_id": 2, "room_name": "Meeting Room A", "capacity": 8, "bookings_confirmed": 0, "bookings_cancelled": 0, "reserved_minutes": 0, "reserved_hours": 0.0, "utilisation": 0.0, "cancellation_rate": 0.0, "under_utilised": true, "over_utilised": false}, {"room_id": 3, "room_name": "Huddle Room B", "capacity": 4, "bookings_confirmed": 0, "bookings_cancelled": 0, "reserved_minutes": 0, "reserved_hours": 0.0, "utilisation": 0.0, "cancellation_rate": 0.0, "under_utilised": true, "over_utilised": false}]
+
+=== [3] reversed range 2026-11-27..2026-11-23 -> 400 Bad Request :: Invalid range: 'from' (2026-11-27) is after 'to' (2026-11-23).
+=== [4] invalid date -> 400 Bad Request :: Parameter 'from'='not-a-date' is not a valid date (use YYYY-MM-DD).

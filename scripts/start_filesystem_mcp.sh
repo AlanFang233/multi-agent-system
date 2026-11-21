@@ -9,6 +9,12 @@ source "$NVM_DIR/nvm.sh"
 # 切换到已安装的 Node.js 24
 nvm use 24 >/dev/null
 
+if [[ -n "${MAS_FILESYSTEM_ROOT:-}" ]]; then
+  cd "$MAS_FILESYSTEM_ROOT"
+  exec npx -y @modelcontextprotocol/server-filesystem@2.3.0 \
+    --read-only --confine-roots "$MAS_FILESYSTEM_ROOT"
+fi
+
 # 启动 Filesystem MCP Server
 exec npx -y \
   @modelcontextprotocol/server-filesystem@2.3.0 \

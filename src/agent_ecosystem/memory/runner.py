@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -140,7 +141,9 @@ async def run_tool_loop_with_memory(
     if not system_prompt_override and role not in SYSTEM_PROMPTS:
         raise ValueError(f"unknown agent role {role}")
     conf=_load_settings(config_path)
-    conf.setdefault("orchestration_database", "data/orchestration.sqlite")
+    conf.setdefault("orchestration_database", os.environ.get(
+        "MAS_ORCHESTRATION_DATABASE", "data/orchestration.sqlite"
+    ))
     db=MemoryDB(conf.get("database","data/agent_memory.sqlite"))
     task_id=task_id or uuid4().hex
     prior=db.begin(role,task_id,prompt,parent_task_id)

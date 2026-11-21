@@ -1,0 +1,15 @@
+# These trusted control-plane skills are loaded before each team planning request.
+root: .trae/skills
+role_directories:
+  coordinator: .
+agents:
+  coordinator:
+    - write-skills
+    - register-tools
+templates:
+  write-skills:
+    - agent-skill-template.md
+    - team-spec-example.json
+  register-tools:
+    - tool-registration-template.yaml
+    - agent-role-template.md

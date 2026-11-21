@@ -398,7 +398,7 @@ approval_id: str | None = None,
                 approval_id=approval_id,
                 system_prompt_override=system_prompt_override,
                 clarification_answer=clarification_answer,
-                config_path="config/memory.yaml",
+                config_path=os.environ.get("MAS_MEMORY_CONFIG", "config/memory.yaml"),
             )
 
 

@@ -221,7 +221,7 @@ Mock LLM（目录驱动规划 + 工作流/自主双模式）、33 项验收套�
 | 同上 | | `pytest tests/`（含本轮新增 5 个回归测试） | **181 passed** |
 | 同上 | | `ruff --select F,E9` | clean |
 
-复跑方式：`bash scripts/phase3_start.sh && bash scripts/run_acceptance.sh`（Mock 全栈，
+历史三 Agent 验收复跑：`bash scripts/phase3_start.sh --legacy && bash scripts/run_acceptance.sh`（Mock 全栈，
 约 25 分钟）；`python -m pytest tests/ -q`（离线，秒级）。
 
 ## 7. Teacher Mid_Test — 真实模型运行结果（Scenario 1）
@@ -320,12 +320,24 @@ npm exec --yes --package=@modelcontextprotocol/server-filesystem@2.3.0 -- node -
 
 ## 10. 启动与运行指南
 
-### 10.1 一键 Mock 全栈（离线、零成本、可复现）
+### 10.1 默认只启动 Coordinator
 
 ```bash
-bash scripts/phase3_start.sh        # Mock LLM(9100) + Calculator(9001) + 3 base agents(8001-8003) + Coordinator(8000)
+bash scripts/start_coordinator.sh  # 当前 .env/OPENAI_* 模型，只启动 Coordinator(8000)
+# 离线演示：额外启动 Mock LLM(9100)，仍不启动三个基础 Agent 或 Calculator：
+bash scripts/phase3_start.sh
 curl -s http://127.0.0.1:8000/health
+curl -s http://127.0.0.1:8000/agents  # 初始仅有 coordinator，创建团队后出现动态 Agent
 ```
+
+两条启动命令二选一，不要同时运行。端口已占用时脚本拒绝启动，不会自动杀掉其他服务。
+默认配置 `coordinator_only: true`；Coordinator 不挂载 `research/coding/analysis`。
+这些名称仅作为 MCP 权限配置保留，允许能力由 `config/capability_catalog.yaml` 独立维护。
+先从 Dashboard 创建并激活 Group，再提交任务。直接向 `/workflows` 提交会返回 409。
+内置 Calculator 在需要它的团队中通过 stdio 按需运行，不需要预先监听 9001。
+tmux 启动入口 `bash scripts/start_agents.sh` 同样只启动 Coordinator。
+旧测试需要三个基础 Agent 时显式使用 `bash scripts/phase3_start.sh --legacy`。
+切换模式前先停止已有 Coordinator；脚本不会自动终止现有团队。
 
 ### 10.2 真实模型（受控）
 
@@ -346,7 +358,7 @@ python -m agent_ecosystem.cli group-show my-team           # 角色/端口/工�
 python -m agent_ecosystem.cli group-stop my-team           # 停止 Agent、释放端口
 ```
 
-基础（非 Group）工作流：
+基础（非 Group）工作流仅适用于显式 `--legacy` 启动的旧验收栈：
 
 ```bash
 python -m agent_ecosystem.cli run "研究 RAG 的关键组件并对比其作用" --mock   # 提交并跟随
@@ -392,10 +404,90 @@ bash scripts/stop_agents.sh; pkill -f agent_ecosystem      # 停止全部服务
 | `OPENAI_BASE_URL Field required` | `.env` 补齐该字段 |
 | Filesystem `Access denied` | 白名单隔离，勿扩权；相对路径现解析到 `mcp_workspace` 根 |
 | 9001 `Connection refused` | Calculator 未启动（仅需要该工具时启动） |
-| Dashboard `Not Found` / 连不上 | 确认 Coordinator 以 `--host 0.0.0.0` 启动且为最新代码 |
+| Dashboard `Not Found` / 连不上 | 默认仅监听 `127.0.0.1:8000`；远程访问需明确配置地址和鉴权 |
 | WSL 后台服务几分钟后消失 | WSL VM 空闲回收：保持一个长会话或用 keep-alive 循环 |
 | `wsl.exe bash -c` 里 `$VAR`/绝对路径被吞 | 改用脚本文件 + `cd` + 相对路径（本项目脚本均如此） |
 | 记忆为空 | `data/` 不入库，新环境为空属正常 |
+
+### 10.8 自然语言创建团队（新增）
+
+重启 Coordinator 后打开 `http://127.0.0.1:8000/dashboard`，在
+**Create Team From Prompt** 输入 Agent 数量、职责和权限边界。例如：
+
+```text
+创建 3 个 agents：
+1. 技术负责人：研究需求、核查资料、汇总真实证据，不修改代码。
+2. 开发工程师：实现 Python 功能，编写代码并在 Docker 沙箱运行。
+3. 测试工程师：编写和执行测试，报告实际结果与边界情况。
+为每个 agent 编写专属的工作流程 Skill，使用最小 MCP 权限。
+```
+
+点击 **Preview Team** 查看角色、Skills 和 MCP 工具清单，再点击
+**Confirm & Start Agents** 确认权限并启动。成功后 **Submit tasks to group**
+自动填入团队 ID；下方 **Submit Task** 将任务发送到该团队。审批和澄清仍在
+右侧面板处理。**Stop Group** 停止团队进程但保留文件、记忆和产物。
+
+新团队文件全部位于 `mcp_workspace/sandboxes/team-<uuid>/`：
+
+```text
+proposal.json                 # 原始需求、审核规格、创建状态
+manifest.json                 # 角色定义及 A2A 地址
+agent_registry.yaml
+mcp_registry.yaml             # 仅包含获准的 MCP 服务及每 Agent 工具白名单
+agent_skills.yaml
+memory.yaml
+agent_memory.sqlite           # 团队记忆与 checkpoint，首次执行时创建
+skills/<group:role>/<skill>/SKILL.md
+logs/<role>.log
+workspace/                    # 团队 Filesystem / Docker 执行工作区
+workspace/templates/          # Coordinator 提供给 Agent 参考的技能、角色及工具登记模板
+```
+
+Agent 复用服务器上的 Python/A2A 实现，通过 `MAS_*` 配置加载专属注册表、
+Skills 和记忆；不复制 Python 环境或安装新的 MCP 服务。协调器全局工作流与
+人工审批索引仍保存在 `data/orchestration.sqlite`。旧式 `/groups` 创建的团队
+也会在激活时将配置与日志生成到 `sandboxes/<group_id>/`，不再写入 `config/`。
+
+API 对应两步操作：
+
+```bash
+curl -sS http://127.0.0.1:8000/groups/plan \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"创建 2 个 agents：研究员负责资料核验与综合，开发负责实现和测试。"}'
+# 阅读返回的 spec，再用返回的 group_id 确认：
+curl -sS http://127.0.0.1:8000/groups/provision \
+  -H 'Content-Type: application/json' \
+  -d '{"group_id":"team-替换为返回的UUID","confirmed":true}'
+```
+
+限制：每组 1-8 个 Agent；至少一个请求的角色承担 `evidence_synthesis`。
+模型只能从 `config/capability_catalog.yaml` 的能力目录与
+`config/mcp_registry.yaml` 的角色工具白名单选择，不能提交任意 command/URL。
+Skills 仅生成指令文本，不执行生成的脚本；配置和 Skills 不允许符号链接。
+模型解析失败仅修复一次，启动失败回收已启动的进程；组配置变化会清除工作流服务缓存。
+Mock LLM 仅支持上述**逐行编号的角色格式**，生成明确标记为 MOCK 的工作流程，
+不是通用自然语言设计能力；真实生成须配置实际 OpenAI-compatible 模型。
+当前接口仍面向可信本地用户，不应无鉴权直接暴露到公网。
+
+### 10.9 Coordinator Skills 与模板
+
+Coordinator 的两项技能由 `config/coordinator_skills.yaml` 登记，并在每次
+`/groups/plan` 请求前通过现有 `skills:load` 加载到规划模型的 system 上下文：
+
+- **Write_Skills**：`.trae/skills/write-skills/SKILL.md`，负责按职责编写触发条件、
+  输入、执行步骤、验收、证据和失败处理，不生成或执行脚本。
+- **Register Tools**：`.trae/skills/register-tools/SKILL.md`，负责选择最小 MCP
+  白名单、必要前置工具和权限边界，不安装新服务或自行扩大权限。
+
+配套模板在两项技能各自的 `assets/` 下：`agent-skill-template.md`、
+`team-spec-example.json`、`tool-registration-template.yaml`、`agent-role-template.md`。
+它们作为结构示例进入规划上下文；生成团队时复制到团队 `workspace/templates/`，
+角色与 Skill 模板也注入新 Agent 的角色提示词。
+规范运行时名称为 `write-skills` 和 `register-tools`，界面保留用户指定的显示名称。
+
+Dashboard 的 **Reference Templates** 可查看模板内容；API 为
+`GET /coordinator/skills` 和 `GET /coordinator/templates`。
+MCP 登记和文件生成仍由确定性代码校验后执行，Skill 本身不授予操作系统权限。
 
 ## 11. 文档与证据索引
 

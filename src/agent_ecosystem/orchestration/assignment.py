@@ -64,8 +64,8 @@ def load_agent_cards(config_path: str | Path = "config/agent_registry.yaml") -> 
 
 
 class CapabilityAssigner:
-    def __init__(self, agents: list[AgentCapabilityCard]) -> None:
-        if not agents:
+    def __init__(self, agents: list[AgentCapabilityCard], *, allow_empty: bool = False) -> None:
+        if not agents and not allow_empty:
             raise ValueError("at least one agent card is required")
         self._agents = list(agents)
 
@@ -89,6 +89,8 @@ class CapabilityAssigner:
 
     def assign(self, required_capabilities: list[str]) -> AssignmentCandidate:
         """Require FULL coverage; refusing is better than mis-routing work."""
+        if not self._agents:
+            raise TaskAssignmentError("No worker agents are mounted; create and activate a group first")
         best = self.candidates(required_capabilities)[0]
         if best.score < 1.0:
             required = {normalize_capability(c) for c in required_capabilities}

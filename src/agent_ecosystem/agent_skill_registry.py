@@ -40,14 +40,26 @@ class AgentSkillRegistry:
         assigned = config.get("agents", {})
         if not isinstance(assigned, dict):
             raise ValueError("'agents' must be a mapping")
+        directories = config.get("role_directories", {})
+        if not isinstance(directories, dict):
+            raise ValueError("'role_directories' must be a mapping")
+        self._role_roots: dict[str, Path] = {}
         self._skills: dict[str, dict[str, dict[str, str]]] = {}
         for role, names in assigned.items():
-            if not isinstance(role, str) or not NAME_PATTERN.fullmatch(role):
+            if (not isinstance(role, str) or len(role.split(":")) > 2
+                    or not all(NAME_PATTERN.fullmatch(part) for part in role.split(":"))):
                 raise ValueError(f"Invalid role: {role!r}")
             if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
                 raise ValueError(f"Invalid skill list for {role}")
             if len(set(names)) != len(names):
                 raise ValueError(f"Repeated skill for {role}")
+            subfolder = directories.get(role, role)
+            if not isinstance(subfolder, str):
+                raise ValueError("Role directory must be a string")
+            allowed_root = (self.root / subfolder).resolve(strict=bool(names))
+            if not allowed_root.is_relative_to(self.root):
+                raise PermissionError("Role directory escapes the Skills root")
+            self._role_roots[role] = allowed_root
             self._skills[role] = {}
             for name in names:
                 if not NAME_PATTERN.fullmatch(name):
@@ -55,7 +67,7 @@ class AgentSkillRegistry:
                 self._skills[role][name] = self._read_skill(role, name)
 
     def _read_skill(self, role: str, name: str) -> dict[str, str]:
-        allowed_root = (self.root / role).resolve()
+        allowed_root = self._role_roots[role]
         location = (allowed_root / name / "SKILL.md").resolve(strict=True)
         if not location.is_relative_to(allowed_root):
             raise PermissionError("Skill path escapes the assigned role directory")

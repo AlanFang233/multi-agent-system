@@ -23,6 +23,8 @@ class GroupAgent:
     tool_profile: str = "research"   # which base permission set to copy
     port: int = 0          # Dynamically assigned
     pid: int = 0           # OS process ID
+    mcp_tools: list[str] | None = None
+    skills: list[dict] = field(default_factory=list)
 
 @dataclass
 class Group:
@@ -47,6 +49,7 @@ class GroupService:
         return conn
 
     def _ensure_tables(self) -> None:
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS groups (
@@ -79,6 +82,8 @@ class GroupService:
         spawns fresh processes on free ports instead of crashing on the
         groups.group_id UNIQUE constraint or returning dead URLs."""
         from datetime import datetime, timezone
+        from .team_builder import runtime_dir
+        runtime_dir(group_id)
         # Best-effort cleanup of any prior incarnation (kills live procs + rows).
         try:
             self.stop_agents(group_id)
@@ -156,45 +161,54 @@ class GroupService:
         group gets its own generated MCP/agent registry files (permissions are
         copied from the role's ``tool_profile``), passed to the child process
         via MAS_* environment variables."""
-        import yaml
+        import socket
 
         repo_root = Path(__file__).resolve().parents[3]
         venv_python = str(repo_root / ".venv" / "bin" / "python")
-        config_dir = repo_root / "config"
-
-        # Load base registries to copy servers/permissions/policy from
-        base_mcp = yaml.safe_load((config_dir / "mcp_registry.yaml").read_text(encoding="utf-8"))
-        base_agents = yaml.safe_load((config_dir / "agent_registry.yaml").read_text(encoding="utf-8"))
-        base_permissions = base_mcp.get("permissions", {})
-
-        # Generate group-scoped registries
-        group_mcp = {"servers": base_mcp.get("servers", {}), "permissions": {}}
-        group_registry = {"agents": {}, "policy": base_agents.get("policy", {})}
+        if not agents or len(agents) > 8:
+            raise ValueError("A group must contain 1-8 agents")
+        # Check the entire block; counting active groups alone can reuse occupied ports.
+        for candidate in range(base_port, 9000 - len(agents), 10):
+            sockets = []
+            try:
+                for offset in range(len(agents)):
+                    sock = socket.socket()
+                    sockets.append(sock)
+                    sock.bind(("127.0.0.1", candidate + offset))
+                base_port = candidate
+                break
+            except OSError:
+                continue
+            finally:
+                for sock in sockets:
+                    sock.close()
+        else:
+            raise RuntimeError("No available Agent port block")
+        from .team_builder import write_bundle
+        runtime = write_bundle(group_id, agents, base_port)
         started = []
         for i, agent in enumerate(agents):
             port = base_port + i
-            ns_id = f"{group_id}:{agent.agent_id}" if ":" not in agent.agent_id else agent.agent_id
-            url = f"http://127.0.0.1:{port}"
-            profile = getattr(agent, "tool_profile", "research")
-            group_mcp["permissions"][ns_id] = list(base_permissions.get(profile, []))
-            group_registry["agents"][ns_id] = {
-                "url": url,
-                "description": agent.role_name,
-                "capabilities": list(agent.capabilities),
-            }
+            ns_id = f"{group_id}:{agent.agent_id.split(':')[-1]}"
             agent.port = port
             agent.agent_id = ns_id
             started.append(agent)
 
-        mcp_path = config_dir / f"mcp_registry_{group_id}.yaml"
-        reg_path = config_dir / f"agent_registry_{group_id}.yaml"
-        mcp_path.write_text(yaml.safe_dump(group_mcp, allow_unicode=True), encoding="utf-8")
-        reg_path.write_text(yaml.safe_dump(group_registry, allow_unicode=True), encoding="utf-8")
-
         env = dict(os.environ)
-        env["MAS_MCP_REGISTRY"] = str(mcp_path)
-        env["MAS_AGENT_REGISTRY"] = str(reg_path)
+        env["MAS_MCP_REGISTRY"] = str(runtime / "mcp_registry.yaml")
+        env["MAS_AGENT_REGISTRY"] = str(runtime / "agent_registry.yaml")
+        env["MAS_AGENT_SKILLS"] = str(runtime / "agent_skills.yaml")
+        env["MAS_MEMORY_CONFIG"] = str(runtime / "memory.yaml")
+        env["MAS_ORCHESTRATION_DATABASE"] = str(Path(self.db_path).resolve())
 
+        try:
+            return self._launch(group_id, started, env, runtime, repo_root, venv_python)
+        except Exception:
+            self.stop_agents(group_id)
+            raise
+
+    def _launch(self, group_id, started, env, runtime, repo_root, venv_python):
+        import httpx
         for agent in started:
             role_name = agent.agent_id.split(":", 1)[1]
             with self._connect() as conn:
@@ -205,16 +219,16 @@ class GroupService:
                      json.dumps(agent.capabilities), agent.port, 0),
                 )
                 conn.commit()
-            log_dir = repo_root / "logs"
+            log_dir = runtime / "logs"
             log_dir.mkdir(exist_ok=True)
-            log_file = open(log_dir / f"group_{group_id}_{role_name}.log", "ab")
-            proc = subprocess.Popen(
-                [venv_python, "-m", "agent_ecosystem.a2a_server",
-                 "--group-id", group_id, "--role-name", role_name,
-                 "--port", str(agent.port), "--host", "127.0.0.1"],
-                cwd=str(repo_root), env=env,
-                stdout=log_file, stderr=log_file,
-            )
+            with open(log_dir / f"{role_name}.log", "ab") as log_file:
+                proc = subprocess.Popen(
+                    [venv_python, "-m", "agent_ecosystem.a2a_server",
+                     "--group-id", group_id, "--role-name", role_name,
+                     "--port", str(agent.port), "--host", "127.0.0.1"],
+                    cwd=str(repo_root), env=env,
+                    stdout=log_file, stderr=log_file,
+                )
             agent.pid = proc.pid
             with self._connect() as conn:
                 conn.execute(
@@ -222,8 +236,21 @@ class GroupService:
                     (proc.pid, group_id, agent.agent_id),
                 )
                 conn.commit()
-        # Wait for servers to bind
-        time.sleep(3)
+        deadline = time.monotonic() + 20
+        pending = list(started)
+        with httpx.Client(timeout=1, trust_env=False) as client:
+            while pending and time.monotonic() < deadline:
+                for agent in pending[:]:
+                    try:
+                        response = client.get(f"http://127.0.0.1:{agent.port}/health")
+                        if response.status_code == 200 and response.json().get("agent") == agent.agent_id:
+                            pending.remove(agent)
+                    except (httpx.HTTPError, ValueError):
+                        pass
+                if pending:
+                    time.sleep(0.1)
+        if pending:
+            raise RuntimeError("Agent startup failed; inspect runtime logs")
         return started
 
     def stop_agents(self, group_id: str) -> None:
@@ -233,8 +260,12 @@ class GroupService:
             ).fetchall()
             for r in rows:
                 try:
-                    os.kill(r["pid"], signal.SIGTERM)
-                except OSError:
+                    if r["pid"] > 0:
+                        command = Path(f"/proc/{r['pid']}/cmdline").read_bytes().split(b"\0")
+                        marker = command.index(b"--group-id")
+                        if command[marker + 1].decode() == group_id:
+                            os.kill(r["pid"], signal.SIGTERM)
+                except (OSError, ValueError, IndexError):
                     pass
             conn.execute(
                 "DELETE FROM group_agents WHERE group_id=?", (group_id,)
@@ -245,9 +276,18 @@ class GroupService:
         """Return {agent_id: url} for a running group."""
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT agent_id, port FROM group_agents WHERE group_id=?", (group_id,)
+                "SELECT agent_id, port, pid FROM group_agents WHERE group_id=?", (group_id,)
             ).fetchall()
-        return {r["agent_id"]: f"http://127.0.0.1:{r['port']}" for r in rows}
+        urls = {}
+        for row in rows:
+            try:
+                command = Path(f"/proc/{row['pid']}/cmdline").read_bytes().split(b"\0")
+                marker = command.index(b"--group-id")
+                if command[marker + 1].decode() == group_id:
+                    urls[row["agent_id"]] = f"http://127.0.0.1:{row['port']}"
+            except (OSError, ValueError, IndexError):
+                pass
+        return urls
 
 
 # ── scenario 1: 4-role software dev team ────────────────────────────────────

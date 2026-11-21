@@ -1,0 +1,16 @@
+# Planning fragment: model supplies only existing identifiers.
+agent_id: researcher
+tool_profile: research
+mcp_tools:
+  - fetch:fetch
+
+# Runtime illustration, rendered by trusted code after human confirmation:
+# servers:
+#   fetch: <copied from config/mcp_registry.yaml, never written by the LLM>
+# permissions:
+#   <group_id>:researcher:
+#     - fetch:fetch
+#
+# Filesystem roots and Docker workspaces are assigned by the Coordinator:
+# mcp_workspace/sandboxes/<group_id>/workspace/
+# No wildcard grants, arbitrary commands, URLs or secrets are accepted.

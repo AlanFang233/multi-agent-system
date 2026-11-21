@@ -304,10 +304,11 @@ class WorkflowService:
         self.store = store or InMemoryWorkflowStore()
         self.planner = planner
         self.provider_kind = provider_kind
-        cards = agent_cards if agent_cards is not None else load_agent_cards(
-            self.config["agent_registry"]
-        )
-        self.assigner = CapabilityAssigner(cards)
+        coordinator_only = bool(self.config.get("coordinator_only", False))
+        cards = agent_cards
+        if cards is None:
+            cards = [] if coordinator_only else load_agent_cards(self.config["agent_registry"])
+        self.assigner = CapabilityAssigner(cards, allow_empty=coordinator_only)
         self.agent_urls = {c.agent_id: c.url for c in self.assigner.cards}
         self._dispatcher_factory = dispatcher_factory or self._default_dispatcher
         self.events = events
@@ -671,6 +672,12 @@ def build_default_service(
     """Wire the production service (Coordinator process). Raises on missing LLM
     configuration — never falls back silently to any mock."""
     config = load_orchestration_config(config_path)
+    import os
+    if "MAS_COORDINATOR_ONLY" in os.environ:
+        value = os.environ["MAS_COORDINATOR_ONLY"].lower()
+        if value not in {"0", "1", "true", "false"}:
+            raise ValueError("MAS_COORDINATOR_ONLY must be 0/1 or true/false")
+        config["coordinator_only"] = value in {"1", "true"}
     if llm_client is None:
         from openai import AsyncOpenAI
 

@@ -1,0 +1,12 @@
+# Allowed team capabilities, independent of any running Agent or A2A address.
+capabilities:
+  - web_search
+  - evidence_synthesis
+  - documentation_research
+  - git_audit
+  - python_debugging
+  - sandbox_execution
+  - file_editing
+  - statistics
+  - loss_metrics
+  - numerical_analysis

@@ -283,7 +283,10 @@ def main() -> None:
         role = f"{args.group_id}:{args.role_name}"
         try:
             from agent_ecosystem.orchestration.group_service import GroupService
-            gs = GroupService()
+            import os
+            gs = GroupService(os.environ.get(
+                "MAS_ORCHESTRATION_DATABASE", "data/orchestration.sqlite"
+            ))
             group = gs.get_group(args.group_id)
             if group:
                 for a in group.agents:

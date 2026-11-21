@@ -12,4 +12,11 @@ def add(a: int, b: int) -> int:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="127.0.0.1", port=9001)
+    import argparse
+    parser = argparse.ArgumentParser(description="Local calculator MCP server")
+    parser.add_argument("--stdio", action="store_true", help="Start on demand without a listening port")
+    args = parser.parse_args()
+    if args.stdio:
+        mcp.run(transport="stdio")
+    else:
+        mcp.run(transport="streamable-http", host="127.0.0.1", port=9001)

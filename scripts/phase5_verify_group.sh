@@ -3,7 +3,7 @@ cd ~/projects/multi-agent-system
 export PYTHONIOENCODING=utf-8
 
 echo "=== restart services ==="
-bash scripts/phase3_start.sh > /dev/null 2>&1
+bash scripts/phase3_start.sh --legacy > /dev/null 2>&1
 sleep 4
 
 echo ""

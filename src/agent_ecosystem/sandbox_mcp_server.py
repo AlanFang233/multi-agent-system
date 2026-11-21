@@ -9,6 +9,7 @@ Requires: MCP SDK v2, Docker Engine, prebuilt agent-sandbox-py:3.12-v1 image.
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
@@ -29,6 +30,16 @@ MAX_OUTPUT_BYTES = 16_384  # Per output stream. Prevent context/memory flooding.
 
 def _root() -> Path:
     """Return the permitted workspace root, rejecting relocated/symlinked roots."""
+    configured = os.environ.get("MAS_SANDBOX_ROOT")
+    if configured:
+        path = Path(configured)
+        base = PROJECT_ROOT / "mcp_workspace" / "sandboxes"
+        if not path.is_absolute() or path.resolve() != path:
+            raise ValueError("Group sandbox root must be absolute and not symlinked")
+        if not path.is_relative_to(base) or path == base:
+            raise ValueError("Group sandbox root must be inside sandboxes")
+        path.mkdir(parents=True, exist_ok=True)
+        return path
     workspace = PROJECT_ROOT / "mcp_workspace"
     if workspace.is_symlink() or WORKSPACE_ROOT.is_symlink():
         raise ValueError("Workspace roots must not be symlinks")

@@ -84,8 +84,8 @@
   "role_probe": {
     "url": "http://127.0.0.1:8100",
     "state": "TASK_STATE_COMPLETED",
-    "latency_s": 14.3,
-    "reply": "I'm the technical lead for this software development team, responsible for understanding your goals, defining the overall technical approach, coordinating delivery across developers and testers, and surfacing key questions and trade-offs for your input. My focus is on architecture and decision-making—translating your requirements into a coherent plan while keeping the team's work aligned.",
+    "latency_s": 9.9,
+    "reply": "I'm the technical lead for this software development team, responsible for understanding your goals, shaping the overall technical approach, coordinating delivery across the team, and discussing key questions and trade-offs with you. I also oversee the work of our developer, test engineer, and release manager to make sure what we ship actually meets your needs.",
     "looks_like_mock": false
   }
 }

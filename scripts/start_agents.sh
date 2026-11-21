@@ -11,19 +11,11 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
     exit 0
 fi
 
-echo "Starting Multi-Agent System..."
+echo "Starting Coordinator only..."
 
-tmux new-session -d -s "$SESSION" -n research \
-    "cd '$ROOT' && source .venv/bin/activate && exec python -m agent_ecosystem.a2a_server --name research --port 8001"
+tmux new-session -d -s "$SESSION" -n coordinator \
+    "cd '$ROOT' && source .venv/bin/activate && exec env MAS_COORDINATOR_ONLY=1 python -m agent_ecosystem.coordinator --host 127.0.0.1 --port 8000"
 
-tmux new-window -t "$SESSION" -n coding \
-    "cd '$ROOT' && source .venv/bin/activate && exec python -m agent_ecosystem.a2a_server --name coding --port 8002"
-
-tmux new-window -t "$SESSION" -n analysis \
-    "cd '$ROOT' && source .venv/bin/activate && exec python -m agent_ecosystem.a2a_server --name analysis --port 8003"
-
-echo "Agent processes launched."
+echo "Coordinator launched; worker agents are created on demand."
 tmux list-windows -t "$SESSION"
-echo "Research: http://127.0.0.1:8001"
-echo "Coding:   http://127.0.0.1:8002"
-echo "Analysis: http://127.0.0.1:8003"
+echo "Dashboard: http://127.0.0.1:8000/dashboard"

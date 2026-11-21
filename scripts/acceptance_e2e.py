@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Integration acceptance run — real E2E tasks A/B/C + HITL + recovery + isolation.
 
-Runs against live services started by scripts/phase3_start.sh (Mock LLM only,
+Runs against live services started by scripts/phase3_start.sh --legacy (Mock LLM only,
 no paid API). Every check prints a "[ACPT] PASS/FAIL" line; evidence JSON goes
 to data/acceptance/. Exit code 0 only if ALL checks pass.
 """

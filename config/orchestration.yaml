@@ -3,6 +3,7 @@
 # docs/PHASE1_ARCHITECTURE_AUDIT.md §2.2; every magic number has an exit here.
 
 # Planner / plan validation
+coordinator_only: true     # no research/coding/analysis mounted; workers come from Groups
 max_subtasks: 8            # LLM plan size cap (validate_plan)
 max_nodes: 12              # materialized nodes incl. governance synthesis
 max_depth: 8               # longest dependency chain allowed (raised 6->8 for real-LLM Mid_Test: repaired plans split into deeper serial chains; still bounded)

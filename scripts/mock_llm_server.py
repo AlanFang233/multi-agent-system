@@ -102,6 +102,11 @@ DELEGATE_TO_ANALYSIS = (
 app = FastAPI(title="Mock LLM Server")
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "mock-llm"}
+
+
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -507,6 +512,46 @@ async def chat_completions(request: Request) -> dict:
     system = (messages[0].get("content", "")
               if messages and messages[0].get("role") == "system" else "")
     role = _role_of(system)
+
+    if isinstance(tool_choice, dict) and tool_choice.get("function", {}).get("name") == "submit_team":
+        # This deterministic fixture supports explicitly numbered roles, not general NLP.
+        payload = json.loads(messages[1]["content"])
+        prompt = payload["request"]
+        roles = re.findall(r"(?m)^\s*\d+[.)、:：]\s*(.+)$", prompt)
+        if not roles or len(roles) > 8:
+            return _completion(None, [_call("submit_team", {
+                "error": "Mock team planning requires 1-8 numbered role lines (1. Lead: ...)"
+            })])
+        agents = []
+        for i, line in enumerate(roles):
+            role_title = re.split(r"[:：]", line, maxsplit=1)[0]
+            coding = bool(re.search(r"开发|测试|implement|develop|test", role_title, re.I))
+            profile = "coding" if coding else "research"
+            caps = ["file_editing", "sandbox_execution"] if coding else ["documentation_research"]
+            if i == 0:
+                caps.append("evidence_synthesis")
+            tools_for_role = (["filesystem_code:write_file", "sandbox:create",
+                               "sandbox:run_python", "sandbox:run_pytest"] if coding
+                              else ["fetch:fetch"])
+            agents.append({
+                "agent_id": f"agent-{i+1}", "role_name": role_title[:100],
+                "responsibilities": [line], "capabilities": caps,
+                "tool_profile": profile, "mcp_tools": tools_for_role,
+                "skills": [{
+                    "name": "role-workflow", "description": f"Mock workflow for role {i+1}",
+                    "instructions": (
+                        f"MOCK-generated instructions. Responsibility: {line}\n"
+                        "Before execution inspect inputs. Use only authorized tools. "
+                        "Cite actual tool evidence and verify acceptance criteria. "
+                        "Report missing information using [[CLARIFY: question]]."
+                    ),
+                }],
+            })
+        declared = re.search(r"(?:创建|create)\s*(\d+)\s*(?:个|agents?)", prompt, re.I)
+        count = int(declared.group(1)) if declared else len(roles)
+        return _completion(None, [_call("submit_team", {
+            "group_name": "Mock Generated Team", "agent_count": count, "agents": agents,
+        })])
 
     if role == "planner":
         goal = _goal_text(messages)

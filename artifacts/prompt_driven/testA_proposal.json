@@ -1,0 +1,68 @@
+{
+  "group_id": "team-13ea3b69d5784f11b1d10b3fa0dc4bd1",
+  "request": "创建 2 个智能体:\n1. Research Analyst: 负责资料研究和事实核查\n2. Python Developer: 负责 Python 开发、运行和测试",
+  "spec": {
+    "group_name": "Mock Generated Team",
+    "agent_count": 2,
+    "agents": [
+      {
+        "agent_id": "agent-1",
+        "role_name": "Research Analyst",
+        "responsibilities": [
+          "Research Analyst: 负责资料研究和事实核查"
+        ],
+        "capabilities": [
+          "documentation_research",
+          "evidence_synthesis"
+        ],
+        "tool_profile": "research",
+        "mcp_tools": [
+          "fetch:fetch",
+          "filesystem:list_directory",
+          "filesystem:read_multiple_files",
+          "filesystem:read_text_file"
+        ],
+        "skills": [
+          {
+            "name": "role-workflow",
+            "description": "Mock workflow for role 1",
+            "instructions": "MOCK-generated instructions. Responsibility: Research Analyst: 负责资料研究和事实核查\nBefore execution inspect inputs. Use only authorized tools. Cite actual tool evidence and verify acceptance criteria. Report missing information using [[CLARIFY: question]]."
+          }
+        ]
+      },
+      {
+        "agent_id": "agent-2",
+        "role_name": "Python Developer",
+        "responsibilities": [
+          "Python Developer: 负责 Python 开发、运行和测试"
+        ],
+        "capabilities": [
+          "file_editing",
+          "sandbox_execution"
+        ],
+        "tool_profile": "coding",
+        "mcp_tools": [
+          "filesystem_code:edit_file",
+          "filesystem_code:list_directory",
+          "filesystem_code:read_text_file",
+          "filesystem_code:write_file",
+          "sandbox:create",
+          "sandbox:run_pytest",
+          "sandbox:run_python"
+        ],
+        "skills": [
+          {
+            "name": "role-workflow",
+            "description": "Mock workflow for role 2",
+            "instructions": "MOCK-generated instructions. Responsibility: Python Developer: 负责 Python 开发、运行和测试\nBefore execution inspect inputs. Use only authorized tools. Cite actual tool evidence and verify acceptance criteria. Report missing information using [[CLARIFY: question]]."
+          }
+        ]
+      }
+    ]
+  },
+  "status": "awaiting_confirmation",
+  "coordinator_skills": [
+    "write-skills",
+    "register-tools"
+  ]
+}

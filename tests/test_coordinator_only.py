@@ -55,6 +55,32 @@ async def test_coordinator_api_reports_only_control_plane(coordinator_service):
         assert "register-tools/agent-role-template.md" in templates
 
 
+async def test_agents_endpoints_survive_existing_groups(tmp_path):
+    """Regression: mounted_agents subscripted Group dataclasses (group["group_id"])
+    and returned 500 on /agents and /agents/discover whenever any group existed
+    in the SQLite store."""
+    from agent_ecosystem.orchestration.group_service import GroupService
+    from agent_ecosystem.orchestration.sqlite_store import SQLiteWorkflowStore
+    store = SQLiteWorkflowStore(tmp_path / "orch.sqlite")
+    svc = WorkflowService(
+        planner=FakePlanner([]), store=store,
+        config={"coordinator_only": True,
+                "memory_database": str(tmp_path / "memory.sqlite")},
+    )
+    gs = GroupService(str(store.path))
+    gs.create_group("team-dead", "Dead Team", [
+        {"agent_id": "a", "role_name": "A", "role_prompt": "p",
+         "capabilities": ["web_search"], "tool_profile": "research"}])
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(svc)), base_url="http://test",
+    ) as client:
+        r = await client.get("/agents")
+        assert r.status_code == 200, r.text
+        assert r.json() == {"coordinator": "http://test"}  # group never activated
+        r2 = await client.get("/agents/discover")
+        assert r2.status_code == 200, r2.text
+
+
 async def test_coordinator_skills_are_loaded_into_planning_context():
     guidance = await CoordinatorSkills(teams.ROOT).context()
     example = json.loads(guidance["templates"]["write-skills/team-spec-example.json"])

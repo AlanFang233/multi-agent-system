@@ -157,7 +157,16 @@ async def test_api_requires_confirmation_and_creates_team(root, monkeypatch):
         assert r.status_code == 200, r.text
         assert len(r.json()["agents"]) == 2
         assert launches[0][0].skills[0]["name"] == "source-review"
-        assert launches[0][0].mcp_tools == ["fetch:fetch"]
+        # Enforcement contract: capability-required tools are unioned into
+        # mcp_tools (bounded by the tool profile), so capability assignment and
+        # real tool access cannot drift.
+        lead_tools = set(launches[0][0].mcp_tools)
+        assert "fetch:fetch" in lead_tools
+        assert {"filesystem:list_directory", "filesystem:read_text_file",
+                "filesystem:read_multiple_files"} <= lead_tools
+        profile = yaml.safe_load(
+            (root / "config/mcp_registry.yaml").read_text())["permissions"]["research"]
+        assert lead_tools <= set(profile)
         r = await client.post("/groups/provision", json={"group_id": gid, "confirmed": True})
         assert r.status_code == 200
         assert len(launches) == 1
@@ -237,3 +246,29 @@ def test_dashboard_javascript_is_parseable():
     assert "overflow:auto;max-height:70vh" in DASHBOARD_HTML
     result = subprocess.run([node, "--check"], input=script, text=True, capture_output=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_enforce_required_tools_unions_minimal_set(root):
+    """Capability→tool drift fix: declared capabilities pull their minimal
+    tool set into mcp_tools (bounded by the profile), never the whole profile."""
+    p = proposal()
+    p["agents"][0]["mcp_tools"] = []  # lead declares web_search but no tools
+    spec = teams.TeamSpec.model_validate(p)
+    teams.enforce_required_tools(spec, root)
+    lead, dev = spec.agents
+    assert {"free_search:search", "free_search:research", "free_search:fetch"} <= set(lead.mcp_tools)
+    assert {"filesystem:read_text_file", "filesystem:list_directory"} <= set(lead.mcp_tools)
+    assert "sandbox:create" in dev.mcp_tools and "sandbox:run_python" in dev.mcp_tools
+    # still minimal: nothing outside the union of declared needs was added
+    assert "git:git_push" not in lead.mcp_tools + dev.mcp_tools
+    teams.validate_policy(spec, root)  # enforced sets stay inside the profiles
+
+
+def test_capability_profile_mismatch_raises(root):
+    """A capability whose required tools the chosen profile cannot provide must
+    fail validation with an actionable message (planner repair feedback)."""
+    p = proposal()
+    p["agents"][0]["tool_profile"] = "analysis"  # web_search needs free_search:*
+    p["agents"][0]["mcp_tools"] = ["calculator:add"]
+    with pytest.raises(ValueError, match="cannot provide"):
+        teams.validate_policy(teams.TeamSpec.model_validate(p), root)

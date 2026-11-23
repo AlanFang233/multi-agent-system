@@ -79,7 +79,28 @@ def catalog(root: Path = ROOT) -> dict:
     return {
         "tool_profiles": mcp["permissions"],
         "capabilities": sorted(capabilities["capabilities"]),
+        "required_tools": capabilities.get("required_tools", {}),
     }
+
+
+def enforce_required_tools(spec: TeamSpec, root: Path = ROOT) -> TeamSpec:
+    """Union each declared capability's minimal tool set into ``mcp_tools``
+    (intersected with the agent's tool profile so permissions stay minimal).
+
+    Closes the teammate-reported gap where a proposal's ``mcp_tools`` omitted
+    tools the agent's capabilities need: the planner assigns work by
+    capability, so capability and real tool access must never drift.
+    """
+    allowed_map = catalog(root)
+    for agent in spec.agents:
+        profile = set(allowed_map["tool_profiles"][agent.tool_profile])
+        required: set[str] = set()
+        for cap in agent.capabilities:
+            required |= set(allowed_map["required_tools"].get(cap, []))
+        missing = sorted((required & profile) - set(agent.mcp_tools))
+        if missing:
+            agent.mcp_tools = sorted(set(agent.mcp_tools) | set(missing))
+    return spec
 
 
 def validate_policy(spec: TeamSpec, root: Path = ROOT) -> None:
@@ -87,6 +108,15 @@ def validate_policy(spec: TeamSpec, root: Path = ROOT) -> None:
     for agent in spec.agents:
         if not set(agent.capabilities) <= set(allowed["capabilities"]):
             raise ValueError(f"Unknown capabilities for {agent.agent_id}")
+        required: set[str] = set()
+        for cap in agent.capabilities:
+            required |= set(allowed["required_tools"].get(cap, []))
+        incompatible = sorted(required - set(allowed["tool_profiles"][agent.tool_profile]))
+        if incompatible:
+            raise ValueError(
+                f"Capabilities of {agent.agent_id} need tools {incompatible} that "
+                f"profile {agent.tool_profile} cannot provide; pick another profile"
+            )
         if not set(agent.mcp_tools) <= set(allowed["tool_profiles"][agent.tool_profile]):
             raise ValueError(f"Unauthorized MCP tools for {agent.agent_id}")
         for skill in agent.skills:
@@ -152,6 +182,7 @@ async def plan_team(
             if count is not None and spec.agent_count != count:
                 raise ValueError(f"User requested exactly {count} agents")
             validate_policy(spec, root)
+            enforce_required_tools(spec, root)
             break
         except ValueError as exc:
             if attempt:

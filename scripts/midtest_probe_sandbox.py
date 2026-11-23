@@ -7,7 +7,6 @@
    (not "Error executing tool").
 """
 import asyncio
-import json
 import sys
 from pathlib import Path
 

@@ -22,7 +22,7 @@
     "skills:load"
   ],
   "fetch_call": "{'tool_id': 'fetch:fetch', 'is_error': False, 'structured_content': None, 'content': [{'type': 'text', 'text': 'Contents of https://example.com/:\\n<p>Example Domain</p>\\n\\nThis domain is for use in do",
-  "sandbox_create": "{'tool_id': 'sandbox:create', 'is_error': False, 'structured_content': None, 'content': [{'type': 'text', 'text': '{\\n  \"sandbox_id\": \"93922db7e8d94aee97d2e6d7cb95caca\",\\n  \"workspace\": \"/home/alan/pr",
+  "sandbox_create": "{'tool_id': 'sandbox:create', 'is_error': False, 'structured_content': None, 'content': [{'type': 'text', 'text': '{\\n  \"sandbox_id\": \"b8448363210b4312b9a6b36376df7bf8\",\\n  \"workspace\": \"/home/alan/pr",
   "skills_load": "{'tool_id': 'skills:load', 'is_error': False, 'structured_content': {'name': 'role-workflow', 'description': 'Mock workflow for role 1', 'instructions",
-  "forbidden_write": "PermissionError: 'team-13ea3b69d5784f11b1d10b3fa0dc4bd1:agent-1' is not allowed to call 'filesystem_code:write_file'"
+  "forbidden_write": "PermissionError: 'team-e63482e40ee24d4daf838e4e03e1ac42:agent-1' is not allowed to call 'filesystem_code:write_file'"
 }

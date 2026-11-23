@@ -28,7 +28,7 @@
       "id": "A5",
       "name": "Confirm → provision → activate (2 live agents)",
       "ok": true,
-      "evidence": "urls={'team-13ea3b69d5784f11b1d10b3fa0dc4bd1:agent-1': 'http://127.0.0.1:8110', 'team-13ea3b69d5784f11b1d10b3fa0dc4bd1:agent-2': 'http://127.0.0.1:8111'}"
+      "evidence": "urls={'team-e63482e40ee24d4daf838e4e03e1ac42:agent-1': 'http://127.0.0.1:8100', 'team-e63482e40ee24d4daf838e4e03e1ac42:agent-2': 'http://127.0.0.1:8101'}"
     },
     {
       "id": "A6",
@@ -52,7 +52,7 @@
       "id": "A9",
       "name": "Forbidden tool refused for research role",
       "ok": true,
-      "evidence": "PermissionError: 'team-13ea3b69d5784f11b1d10b3fa0dc4bd1:agent-1' is not allowed to call 'filesystem_code:write_file'"
+      "evidence": "PermissionError: 'team-e63482e40ee24d4daf838e4e03e1ac42:agent-1' is not allowed to call 'filesystem_code:write_file'"
     },
     {
       "id": "A10",
@@ -70,13 +70,13 @@
       "id": "B2",
       "name": "Team provisioned + activated (4 agents)",
       "ok": true,
-      "evidence": "urls=['team-e153c3dfa1e8433380cdaad07b06e845:agent-1', 'team-e153c3dfa1e8433380cdaad07b06e845:agent-2', 'team-e153c3dfa1e8433380cdaad07b06e845:agent-3', 'team-e153c3dfa1e8433380cdaad07b06e845:agent-4']"
+      "evidence": "urls=['team-5461ac376eb646ba859788db4e6bb132:agent-1', 'team-5461ac376eb646ba859788db4e6bb132:agent-2', 'team-5461ac376eb646ba859788db4e6bb132:agent-3', 'team-5461ac376eb646ba859788db4e6bb132:agent-4']"
     },
     {
       "id": "B3",
       "name": "Group workflow COMPLETED via real A2A (>=2 roles)",
       "ok": true,
-      "evidence": "wf=wf_ee4e2acf897b455e8984b225def0e9e3 status=completed approvals=4 agents=['team-e153c3dfa1e8433380cdaad07b06e845:agent-1', 'team-e153c3dfa1e8433380cdaad07b06e845:agent-2']"
+      "evidence": "wf=wf_2ad46017107e48f28916d5e396826c96 status=completed approvals=4 agents=['team-5461ac376eb646ba859788db4e6bb132:agent-1', 'team-5461ac376eb646ba859788db4e6bb132:agent-2']"
     },
     {
       "id": "B4",
@@ -88,7 +88,7 @@
       "id": "C1",
       "name": "Rejected approval → workflow FAILED, zero high-risk exec",
       "ok": true,
-      "evidence": "wf=wf_07b3a5b8d98a4ffbb23272ac39c0e693 status=failed execs=0"
+      "evidence": "wf=wf_3621de12cd724467bdf4cadbe5edda6c status=failed execs=0"
     }
   ],
   "failed": []

@@ -10,3 +10,20 @@ capabilities:
   - statistics
   - loss_metrics
   - numerical_analysis
+
+# Minimal MCP tools each capability needs at runtime. team_builder unions these
+# into every AgentSpec.mcp_tools (intersected with the agent's tool profile, so
+# permissions stay minimal) — the planner's capability assignment and an agent's
+# real tool access can therefore never drift. validate_policy rejects a
+# capability/profile pair whose required tools the profile cannot provide.
+required_tools:
+  web_search: [free_search:search, free_search:research, free_search:fetch]
+  documentation_research: [fetch:fetch, filesystem:read_text_file, filesystem:list_directory]
+  evidence_synthesis: [filesystem:read_text_file, filesystem:list_directory, filesystem:read_multiple_files]
+  git_audit: [git:git_status, git:git_log, git:git_diff]
+  python_debugging: [sandbox:create, sandbox:run_python, filesystem_code:read_text_file, filesystem_code:list_directory]
+  sandbox_execution: [sandbox:create, sandbox:run_python]
+  file_editing: [filesystem_code:write_file, filesystem_code:edit_file, filesystem_code:list_directory, filesystem_code:read_text_file]
+  statistics: [calculator:add, filesystem:read_text_file]
+  loss_metrics: [calculator:add]
+  numerical_analysis: [calculator:add, filesystem:read_text_file]

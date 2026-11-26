@@ -376,6 +376,13 @@ approval_id: str | None = None,
     
     if errors:
         print(f"[Registry 警告] 以下 Server 不可用: {errors}", file=sys.stderr)
+    # A tool being listed in the permission set does not mean it is callable:
+    # name the authorized-but-unloaded tools explicitly so a missing server is
+    # never silent (Mid_Test MCP-assignment check #7).
+    unavailable = sorted(set(mcp_registry.permissions.get(role, [])) - set(mcp_registry.tools))
+    if unavailable:
+        print(f"[Registry 警告] {role} 已授权但当前不可用的工具: {unavailable} "
+              f"(server 不可用: {errors})", file=sys.stderr, flush=True)
     settings = ModelSettings()
     max_rounds = 12
     if isinstance(max_tool_calls, int) and max_tool_calls > 0:

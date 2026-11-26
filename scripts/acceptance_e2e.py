@@ -7,6 +7,7 @@ to data/acceptance/. Exit code 0 only if ALL checks pass.
 """
 import asyncio
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -62,8 +63,17 @@ def _query(db: Path, sql: str, args=()) -> list[dict]:
         conn.close()
 
 
-def mem_query(sql, args=()):
-    return _query(MEM_DB, sql, args)
+def mem_query(sql, args=(), db=None):
+    path = MEM_DB if db is None else Path(db)
+    if db is not None and not path.exists():
+        path = MEM_DB  # pre-bundle layouts kept group memory in the default DB
+    return _query(path, sql, args)
+
+
+def group_mem_db(gid: str) -> Path:
+    """Per-group memory DB written via bundle memory.yaml (MAS_MEMORY_CONFIG);
+    since b065e0d group audit rows no longer live in the default memory DB."""
+    return ROOT / "mcp_workspace" / "sandboxes" / gid / "agent_memory.sqlite"
 
 
 def orch_query(sql, args=()):
@@ -311,7 +321,8 @@ async def task_c(client):
            str(agents_used))
     calc_rows = mem_query(
         "SELECT tool_id, agent_id FROM tool_results "
-        "WHERE task_id LIKE ? AND body LIKE '%CALC_TESTS_PASSED%'", (wf + ":%",))
+        "WHERE task_id LIKE ? AND body LIKE '%CALC_TESTS_PASSED%'", (wf + ":%",),
+        db=group_mem_db(gid))
     record("C4", "Calculator really executed (CALC_TESTS_PASSED in tool audit)",
            len(calc_rows) >= 1, str(calc_rows[:4]))
     g = (await client.get(f"{COORD}/groups/{gid}")).json()
@@ -344,10 +355,13 @@ async def task_restart(client):
         pass
     record("RS2", "Coordinator process killed", dead)
     logf = open(ROOT / "logs" / "coordinator.log", "ab")
+    # The acceptance flow drives base workers, so the restarted Coordinator
+    # must keep legacy mode (repo default is coordinator-only since b065e0d).
+    env = dict(os.environ, MAS_COORDINATOR_ONLY="0")
     subprocess.Popen(
         [VENV_PY, "-m", "agent_ecosystem.coordinator", "--host", "0.0.0.0",
          "--port", "8000"],
-        cwd=str(ROOT), stdout=logf, stderr=logf, start_new_session=True)
+        cwd=str(ROOT), stdout=logf, stderr=logf, start_new_session=True, env=env)
     up = False
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
@@ -441,14 +455,14 @@ async def task_isolation(client):
            and all(a.startswith(gid + ":") for a in agents_used),
            f"status={st} agents={agents_used}")
     rows = mem_query("SELECT DISTINCT agent_id FROM tasks WHERE task_id LIKE ?",
-                     (wf2 + ":%",))
+                     (wf2 + ":%",), db=group_mem_db(gid))
     record("IS5", "Memory rows namespaced (no cross-group contamination)",
            bool(rows) and all(x["agent_id"].startswith(gid + ":") for x in rows),
            str([x["agent_id"] for x in rows]))
     c_wf = GLOBAL.get("c_wf")
     if c_wf:
         rows_c = mem_query("SELECT DISTINCT agent_id FROM tasks WHERE task_id LIKE ?",
-                           (c_wf + ":%",))
+                           (c_wf + ":%",), db=group_mem_db("acpt-c"))
         record("IS6", "Group-1 memory rows kept their own namespace",
                bool(rows_c) and all(x["agent_id"].startswith("acpt-c:")
                                     for x in rows_c),

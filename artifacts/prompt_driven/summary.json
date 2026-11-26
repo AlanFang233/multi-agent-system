@@ -1,0 +1,95 @@
+{
+  "results": [
+    {
+      "id": "A1",
+      "name": "Preview: exactly 2 agents from prompt",
+      "ok": true,
+      "evidence": "roles=['Research Analyst', 'Python Developer']"
+    },
+    {
+      "id": "A2",
+      "name": "Roles/profiles/tools per prompt intent",
+      "ok": true,
+      "evidence": "profiles=['research', 'coding'] tools=[['fetch:fetch', 'filesystem:list_directory', 'filesystem:read_multiple_files', 'filesystem:read_text_file'], ['filesystem_code:edit_file', 'filesystem_code:list_directory', 'filesystem_code:read_text_file', 'filesystem_code:write_file', 'sandbox:create', 'sandbox:run_pytest', 'sandbox:run_python']]"
+    },
+    {
+      "id": "A3",
+      "name": "Skills generated per agent (1-4, instruction-only)",
+      "ok": true,
+      "evidence": "skills=[['role-workflow'], ['role-workflow']]"
+    },
+    {
+      "id": "A4",
+      "name": "Provision without confirm refused",
+      "ok": true,
+      "evidence": "rc=409"
+    },
+    {
+      "id": "A5",
+      "name": "Confirm → provision → activate (2 live agents)",
+      "ok": true,
+      "evidence": "urls={'team-e63482e40ee24d4daf838e4e03e1ac42:agent-1': 'http://127.0.0.1:8100', 'team-e63482e40ee24d4daf838e4e03e1ac42:agent-2': 'http://127.0.0.1:8101'}"
+    },
+    {
+      "id": "A6",
+      "name": "Research role REAL fetch call succeeds",
+      "ok": true,
+      "evidence": "{'tool_id': 'fetch:fetch', 'is_error': False, 'structured_content': None, 'content': [{'type': 'text', 'text': 'Contents"
+    },
+    {
+      "id": "A7",
+      "name": "Dev role REAL sandbox:create succeeds (Docker)",
+      "ok": true,
+      "evidence": "{'tool_id': 'sandbox:create', 'is_error': False, 'structured_content': None, 'content': [{'type': 'text', 'text': '{\\n  "
+    },
+    {
+      "id": "A8",
+      "name": "skills:load callable per namespace",
+      "ok": true,
+      "evidence": "{'tool_id': 'skills:load', 'is_error': False, 'structured_content': {'name': 'role-workflow', 'descr"
+    },
+    {
+      "id": "A9",
+      "name": "Forbidden tool refused for research role",
+      "ok": true,
+      "evidence": "PermissionError: 'team-e63482e40ee24d4daf838e4e03e1ac42:agent-1' is not allowed to call 'filesystem_code:write_file'"
+    },
+    {
+      "id": "A10",
+      "name": "Whitelist = bundle permissions (minimal, profile-bounded)",
+      "ok": true,
+      "evidence": "research=7 dev=10 tools"
+    },
+    {
+      "id": "B1",
+      "name": "4-role team proposed dynamically (not hardcoded ids)",
+      "ok": true,
+      "evidence": "roles=['Technical Lead', 'Software Developer', 'QA Engineer (Test Engineer)', 'Release Manager']"
+    },
+    {
+      "id": "B2",
+      "name": "Team provisioned + activated (4 agents)",
+      "ok": true,
+      "evidence": "urls=['team-5461ac376eb646ba859788db4e6bb132:agent-1', 'team-5461ac376eb646ba859788db4e6bb132:agent-2', 'team-5461ac376eb646ba859788db4e6bb132:agent-3', 'team-5461ac376eb646ba859788db4e6bb132:agent-4']"
+    },
+    {
+      "id": "B3",
+      "name": "Group workflow COMPLETED via real A2A (>=2 roles)",
+      "ok": true,
+      "evidence": "wf=wf_2ad46017107e48f28916d5e396826c96 status=completed approvals=4 agents=['team-5461ac376eb646ba859788db4e6bb132:agent-1', 'team-5461ac376eb646ba859788db4e6bb132:agent-2']"
+    },
+    {
+      "id": "B4",
+      "name": "Real sandbox execution in GROUP memory audit",
+      "ok": true,
+      "evidence": "['sandbox:run_python', 'sandbox:run_python'] in agent_memory.sqlite"
+    },
+    {
+      "id": "C1",
+      "name": "Rejected approval → workflow FAILED, zero high-risk exec",
+      "ok": true,
+      "evidence": "wf=wf_3621de12cd724467bdf4cadbe5edda6c status=failed execs=0"
+    }
+  ],
+  "failed": []
+}

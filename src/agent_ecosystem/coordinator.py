@@ -212,7 +212,7 @@ def create_app(service: Any = None) -> FastAPI:
         if hasattr(svc.store, "path"):
             gs = group_manager()
             for group in gs.list_groups():
-                urls.update(gs.get_agent_urls(group["group_id"]))
+                urls.update(gs.get_agent_urls(group.group_id))
         return urls
 
     @app.get("/health")
@@ -465,7 +465,8 @@ def create_app(service: Any = None) -> FastAPI:
     @app.post("/groups/provision")
     async def provision_team(body: TeamProvisionRequest):
         from agent_ecosystem.orchestration.team_builder import (
-            TeamSpec, agent_definitions, runtime_dir, validate_policy,
+            TeamSpec, agent_definitions, enforce_required_tools, runtime_dir,
+            validate_policy,
         )
         if not body.confirmed:
             return JSONResponse({"error": "Review the proposal and confirm before activation"},
@@ -478,6 +479,7 @@ def create_app(service: Any = None) -> FastAPI:
             proposal = json.loads(proposal_file.read_text())
             try:
                 spec = TeamSpec.model_validate(proposal["spec"])
+                enforce_required_tools(spec)
                 validate_policy(spec)
                 gs = group_manager()
                 if gs.get_group(body.group_id) is None:

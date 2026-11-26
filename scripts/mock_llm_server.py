@@ -152,8 +152,12 @@ def _search_tool_results(messages: list[dict], pattern: str) -> str | None:
 
 
 def _sandbox_paths(messages: list[dict]) -> tuple[str | None, str | None]:
+    # Matches both the legacy layout (sandboxes/<32-hex>) and per-group bundle
+    # layouts (sandboxes/<group-id>/workspace/<32-hex>) produced by
+    # team_builder.write_bundle via MAS_SANDBOX_ROOT.
     ws = _search_tool_results(
-        messages, r'([/A-Za-z0-9_.\-]*mcp_workspace/sandboxes/[0-9a-f]{32})')
+        messages, r'([/A-Za-z0-9_.\-]*mcp_workspace/sandboxes/'
+                  r'(?:[a-z0-9\-]+/workspace/)?[0-9a-f]{32})')
     if ws:
         return ws, ws.rstrip("/").split("/")[-1]
     return None, None

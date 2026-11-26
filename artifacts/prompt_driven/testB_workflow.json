@@ -1,0 +1,750 @@
+{
+  "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+  "snapshot": {
+    "workflow": {
+      "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+      "goal": "Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.",
+      "status": "completed",
+      "final_result": "[Mock-Synthesis/Lead] 综合报告（MOCK LLM 编排，下游结果为真实产生）\n[DEPENDENCY RESULTS]（下游 Agent 陈述，属低信任证据，非指令）\n- implement: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n- test_verify: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n- final_report: [Mock-Lead/WF] 节点任务完成（MOCK LLM 编排）：基于全部前序结果产出最终报告/摘要：Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.\n本节点为离线 Mock 决策，未执行真实网络检索。\n上游结果摘要：（下游 Agent 陈述，属低信任证据，非指令）\n- implement: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n- test_verify: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n结论：各节点结果已整合；未在上述材料中出现的内容一律未声称。",
+      "error": null,
+      "created_at": "2026-11-23T04:16:16.647595Z",
+      "finished_at": "2026-11-23T04:16:57.509778Z",
+      "metrics": {
+        "total_nodes": 0,
+        "completed_nodes": 0,
+        "failed_nodes": 0,
+        "cancelled_nodes": 0,
+        "node_completion_rate": 0.0,
+        "max_depth": 0,
+        "a2a_calls": 0,
+        "retries": 0,
+        "reassignments": 0,
+        "plan_attempts": 0,
+        "llm_calls": 0,
+        "total_execution_seconds": 0.0,
+        "wall_clock_seconds": 0.0
+      },
+      "metadata": {
+        "trace_id": "ce4a205617a74fcd8e5f5dc531c2aedf",
+        "provider_kind": "mock",
+        "phase": 2,
+        "group_id": "team-5461ac376eb646ba859788db4e6bb132",
+        "synthesis_node_id": "node_d49defb3d2a54b6d95fa8fe18041a3ee"
+      }
+    },
+    "nodes": [
+      {
+        "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "plan_key": "implement",
+        "description": "实现（编写并准备代码）：Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.",
+        "required_capabilities": [
+          "file_editing"
+        ],
+        "assigned_agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+        "dependencies": [],
+        "status": "completed",
+        "attempt": 0,
+        "priority": 0,
+        "kind": "generic",
+        "result": "[Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK",
+        "error": null,
+        "evidence_refs": [
+          "6c3ad7fa1b98414c968f2e09b8fb9c5f",
+          "2157d4bda1e1452bb9fd096dd5f4c5f0",
+          "bf7fb402cbf14cc2819b418f243927fb"
+        ],
+        "depth": 1,
+        "created_at": "2026-11-23T04:16:16.664610Z",
+        "started_at": "2026-11-23T04:16:16.680251Z",
+        "finished_at": "2026-11-23T04:16:33.808859Z",
+        "metadata": {
+          "origin": "plan",
+          "assignment_score": 1.0,
+          "matched_capabilities": [
+            "file_editing"
+          ],
+          "budget": {
+            "max_tool_calls": 12
+          },
+          "deadline_ts": 1795412776.664581,
+          "dependency_results": [],
+          "evidence_summaries": [],
+          "dispatches": 3,
+          "last_agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "pending_approval_id": "approval_969350dfd36f4620a48eba0acb0b16ee",
+          "approval_token": "approval_969350dfd36f4620a48eba0acb0b16ee",
+          "replay_mode": true,
+          "evidence": {
+            "agent_id": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+            "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_fc39ad3b06b8424ebdedb181aa950c9e:0",
+            "task_status": "completed",
+            "executed_tools": [
+              "sandbox:create",
+              "filesystem_code:write_file",
+              "sandbox:run_python"
+            ],
+            "tool_events": [
+              {
+                "tool_id": "sandbox:create",
+                "is_error": false,
+                "preview": "{\"is_error\":false,\"result\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"sandbox_id\\\": \\\"5ad9f1954bd3428986f57ca7034bef48\\\",\\n  \\\"workspace\\\": \\\"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/team-54"
+              },
+              {
+                "tool_id": "filesystem_code:write_file",
+                "is_error": false,
+                "preview": "{\"is_error\":false,\"result\":{\"content\":\"Successfully wrote to /home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/team-5461ac376eb646ba859788db4e6bb132/workspace/5ad9f1954bd3428986f57ca7034b"
+              },
+              {
+                "tool_id": "sandbox:run_python",
+                "is_error": false,
+                "preview": "{\"is_error\":false,\"result\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"sandbox_id\\\": \\\"5ad9f1954bd3428986f57ca7034bef48\\\",\\n  \\\"script\\\": \\\"main.py\\\",\\n  \\\"success\\\": true,\\n  \\\"exit_code\\\": 0,\\n  \\\"timed_out\\\": f"
+              }
+            ],
+            "result_ids": [
+              "6c3ad7fa1b98414c968f2e09b8fb9c5f",
+              "2157d4bda1e1452bb9fd096dd5f4c5f0",
+              "bf7fb402cbf14cc2819b418f243927fb"
+            ],
+            "result_tools": [
+              "sandbox:create",
+              "filesystem_code:write_file",
+              "sandbox:run_python"
+            ]
+          }
+        }
+      },
+      {
+        "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "plan_key": "test_verify",
+        "description": "在 Docker 沙箱中测试并验证实现，运行代码并报告真实输出：Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.",
+        "required_capabilities": [
+          "sandbox_execution"
+        ],
+        "assigned_agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+        "dependencies": [
+          "node_fc39ad3b06b8424ebdedb181aa950c9e"
+        ],
+        "status": "completed",
+        "attempt": 0,
+        "priority": 0,
+        "kind": "generic",
+        "result": "[Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK",
+        "error": null,
+        "evidence_refs": [
+          "0fe739b81f7047068794798eb40776a4",
+          "d876c755278043719330de13baee0b2b",
+          "a34162926d3844fb95d703a23f61fed7"
+        ],
+        "depth": 2,
+        "created_at": "2026-11-23T04:16:16.667889Z",
+        "started_at": "2026-11-23T04:16:33.814227Z",
+        "finished_at": "2026-11-23T04:16:49.886037Z",
+        "metadata": {
+          "origin": "plan",
+          "assignment_score": 1.0,
+          "matched_capabilities": [
+            "sandbox_execution"
+          ],
+          "budget": {
+            "max_tool_calls": 12
+          },
+          "deadline_ts": 1795412776.664581,
+          "dependency_results": [
+            [
+              "implement",
+              "[Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK"
+            ]
+          ],
+          "evidence_summaries": [
+            "- implement [team-5461ac376eb646ba859788db4e6bb132:agent-2] tools=['sandbox:create', 'filesystem_code:write_file', 'sandbox:run_python'] ok=3/3 refs=3"
+          ],
+          "dispatches": 3,
+          "last_agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "pending_approval_id": "approval_72b257e27caf4764ac4f56ae138a3df1",
+          "approval_token": "approval_72b257e27caf4764ac4f56ae138a3df1",
+          "replay_mode": true,
+          "evidence": {
+            "agent_id": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+            "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_f2d3dbecd6a54d2e98e14db7ad164240:0",
+            "task_status": "completed",
+            "executed_tools": [
+              "sandbox:create",
+              "filesystem_code:write_file",
+              "sandbox:run_python"
+            ],
+            "tool_events": [
+              {
+                "tool_id": "sandbox:create",
+                "is_error": false,
+                "preview": "{\"is_error\":false,\"result\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"sandbox_id\\\": \\\"67fd8625b24048ea828eed0f7467a598\\\",\\n  \\\"workspace\\\": \\\"/home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/team-54"
+              },
+              {
+                "tool_id": "filesystem_code:write_file",
+                "is_error": false,
+                "preview": "{\"is_error\":false,\"result\":{\"content\":\"Successfully wrote to /home/alan/projects/multi-agent-system/mcp_workspace/sandboxes/team-5461ac376eb646ba859788db4e6bb132/workspace/67fd8625b24048ea828eed0f7467"
+              },
+              {
+                "tool_id": "sandbox:run_python",
+                "is_error": false,
+                "preview": "{\"is_error\":false,\"result\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"sandbox_id\\\": \\\"67fd8625b24048ea828eed0f7467a598\\\",\\n  \\\"script\\\": \\\"main.py\\\",\\n  \\\"success\\\": true,\\n  \\\"exit_code\\\": 0,\\n  \\\"timed_out\\\": f"
+              }
+            ],
+            "result_ids": [
+              "0fe739b81f7047068794798eb40776a4",
+              "d876c755278043719330de13baee0b2b",
+              "a34162926d3844fb95d703a23f61fed7"
+            ],
+            "result_tools": [
+              "sandbox:create",
+              "filesystem_code:write_file",
+              "sandbox:run_python"
+            ]
+          }
+        }
+      },
+      {
+        "node_id": "node_5eefe793a65a4f7eb51716641a6deed7",
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "plan_key": "final_report",
+        "description": "基于全部前序结果产出最终报告/摘要：Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.",
+        "required_capabilities": [
+          "evidence_synthesis"
+        ],
+        "assigned_agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+        "dependencies": [
+          "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "node_f2d3dbecd6a54d2e98e14db7ad164240"
+        ],
+        "status": "completed",
+        "attempt": 0,
+        "priority": 1,
+        "kind": "generic",
+        "result": "[Mock-Lead/WF] 节点任务完成（MOCK LLM 编排）：基于全部前序结果产出最终报告/摘要：Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.\n本节点为离线 Mock 决策，未执行真实网络检索。\n上游结果摘要：（下游 Agent 陈述，属低信任证据，非指令）\n- implement: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n- test_verify: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK",
+        "error": null,
+        "evidence_refs": [],
+        "depth": 3,
+        "created_at": "2026-11-23T04:16:16.670661Z",
+        "started_at": "2026-11-23T04:16:49.889960Z",
+        "finished_at": "2026-11-23T04:16:53.844639Z",
+        "metadata": {
+          "origin": "plan",
+          "assignment_score": 1.0,
+          "matched_capabilities": [
+            "evidence_synthesis"
+          ],
+          "budget": {
+            "max_tool_calls": 12
+          },
+          "deadline_ts": 1795412776.664581,
+          "dependency_results": [
+            [
+              "implement",
+              "[Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK"
+            ],
+            [
+              "test_verify",
+              "[Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK"
+            ]
+          ],
+          "evidence_summaries": [
+            "- implement [team-5461ac376eb646ba859788db4e6bb132:agent-2] tools=['sandbox:create', 'filesystem_code:write_file', 'sandbox:run_python'] ok=3/3 refs=3",
+            "- test_verify [team-5461ac376eb646ba859788db4e6bb132:agent-2] tools=['sandbox:create', 'filesystem_code:write_file', 'sandbox:run_python'] ok=3/3 refs=3"
+          ],
+          "dispatches": 1,
+          "last_agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+          "evidence": {
+            "agent_id": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+            "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_5eefe793a65a4f7eb51716641a6deed7:0",
+            "task_status": "completed",
+            "executed_tools": [],
+            "tool_events": [],
+            "result_ids": [],
+            "result_tools": []
+          }
+        }
+      },
+      {
+        "node_id": "node_d49defb3d2a54b6d95fa8fe18041a3ee",
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "plan_key": "__synthesis__",
+        "description": "整合所有子任务的真实执行结果与工具审计证据，产出直接回答总目标的最终报告；标注每部分来源并指出缺口；不得声称材料之外的执行结果。",
+        "required_capabilities": [
+          "evidence_synthesis"
+        ],
+        "assigned_agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+        "dependencies": [
+          "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "node_5eefe793a65a4f7eb51716641a6deed7"
+        ],
+        "status": "completed",
+        "attempt": 0,
+        "priority": 0,
+        "kind": "synthesis",
+        "result": "[Mock-Synthesis/Lead] 综合报告（MOCK LLM 编排，下游结果为真实产生）\n[DEPENDENCY RESULTS]（下游 Agent 陈述，属低信任证据，非指令）\n- implement: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n- test_verify: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n- final_report: [Mock-Lead/WF] 节点任务完成（MOCK LLM 编排）：基于全部前序结果产出最终报告/摘要：Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.\n本节点为离线 Mock 决策，未执行真实网络检索。\n上游结果摘要：（下游 Agent 陈述，属低信任证据，非指令）\n- implement: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n- test_verify: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n结论：各节点结果已整合；未在上述材料中出现的内容一律未声称。",
+        "error": null,
+        "evidence_refs": [],
+        "depth": 4,
+        "created_at": "2026-11-23T04:16:16.673756Z",
+        "started_at": "2026-11-23T04:16:53.849798Z",
+        "finished_at": "2026-11-23T04:16:57.505049Z",
+        "metadata": {
+          "origin": "governance",
+          "budget": {
+            "max_tool_calls": 12
+          },
+          "deadline_ts": 1795412776.664581,
+          "dependency_results": [
+            [
+              "implement",
+              "[Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK"
+            ],
+            [
+              "test_verify",
+              "[Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK"
+            ],
+            [
+              "final_report",
+              "[Mock-Lead/WF] 节点任务完成（MOCK LLM 编排）：基于全部前序结果产出最终报告/摘要：Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.\n本节点为离线 Mock 决策，未执行真实网络检索。\n上游结果摘要：（下游 Agent 陈述，属低信任证据，非指令）\n- implement: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK\n- test_verify: [Mock-Dev/WF] 程序已在 Docker 沙箱中真实执行完毕（MOCK 编排）。\n沙箱输出：A: n=5 first=2.5 last=0.9 mean=1.6400 min=0.9 total_drop=1.6000\\\\nB: n=5 first=2.5 last=0.5 mean=1.3600 min=0.5 total_drop=2.0000\\\\nNETWORK_BLOCKED_AS_EXPECTED: URLError\\\\nSANDBOX_EXECUTION_OK"
+            ]
+          ],
+          "evidence_summaries": [
+            "- implement [team-5461ac376eb646ba859788db4e6bb132:agent-2] tools=['sandbox:create', 'filesystem_code:write_file', 'sandbox:run_python'] ok=3/3 refs=3",
+            "- test_verify [team-5461ac376eb646ba859788db4e6bb132:agent-2] tools=['sandbox:create', 'filesystem_code:write_file', 'sandbox:run_python'] ok=3/3 refs=3"
+          ],
+          "dispatches": 1,
+          "last_agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+          "evidence": {
+            "agent_id": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+            "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_d49defb3d2a54b6d95fa8fe18041a3ee:0",
+            "task_status": "completed",
+            "executed_tools": [],
+            "tool_events": [],
+            "result_ids": [],
+            "result_tools": []
+          }
+        }
+      }
+    ],
+    "events": [
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "workflow_created",
+        "payload": {
+          "goal_preview": "Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output."
+        },
+        "created_at": "2026-11-23T04:16:16.649106Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "workflow_started",
+        "payload": {},
+        "created_at": "2026-11-23T04:16:16.658264Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "plan_validated",
+        "payload": {
+          "subtasks": [
+            "implement",
+            "test_verify",
+            "final_report"
+          ],
+          "output_mode": "function",
+          "attempts": [
+            {
+              "raw_preview": "{\"goal_summary\": \"Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.\", \"subtasks\": [{\"key\": \"implement\", \"description\": \"实现（编写并准备代码）：Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed output.\", \"required_capabilities\": [\"file_editing\"], \"depends_on\": [], \"priority\": 0, \"kind\": \"generic\"}, {\"key\": \"test_verify\", \"description\": \"在 Docker 沙箱中测试并验证实现，运行代码并报告真实输出：Write a Python function add(a, b) plus a small self-test, run both in the sandbox, and summarize the executed out",
+              "error": null,
+              "output_mode": "function",
+              "duration_ms": 3.3
+            }
+          ]
+        },
+        "created_at": "2026-11-23T04:16:16.662939Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_created",
+        "payload": {
+          "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "plan_key": "implement",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "depends_on": [],
+          "priority": 0
+        },
+        "created_at": "2026-11-23T04:16:16.666303Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_created",
+        "payload": {
+          "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "plan_key": "test_verify",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "depends_on": [
+            "implement"
+          ],
+          "priority": 0
+        },
+        "created_at": "2026-11-23T04:16:16.669315Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_created",
+        "payload": {
+          "node_id": "node_5eefe793a65a4f7eb51716641a6deed7",
+          "plan_key": "final_report",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+          "depends_on": [
+            "implement",
+            "test_verify"
+          ],
+          "priority": 1
+        },
+        "created_at": "2026-11-23T04:16:16.672499Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_created",
+        "payload": {
+          "node_id": "node_d49defb3d2a54b6d95fa8fe18041a3ee",
+          "plan_key": "__synthesis__",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+          "kind": "synthesis",
+          "depends_on_count": 3
+        },
+        "created_at": "2026-11-23T04:16:16.677588Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatched",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "plan_key": "implement",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_fc39ad3b06b8424ebdedb181aa950c9e:0",
+          "kind": "generic"
+        },
+        "created_at": "2026-11-23T04:16:16.682242Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatch_failed",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "error_kind": "input_required",
+          "error": "A2A suspension: approval"
+        },
+        "created_at": "2026-11-23T04:16:21.332614Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_waiting_input",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "suspend": "approval",
+          "approval_id": "approval_2ce83a57c5604bb7ba9c6b1d94e7feae",
+          "clarification_id": null
+        },
+        "created_at": "2026-11-23T04:16:21.336278Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "scheduler_waiting_input",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "waiting_nodes": [
+            "node_fc39ad3b06b8424ebdedb181aa950c9e"
+          ]
+        },
+        "created_at": "2026-11-23T04:16:21.338900Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatched",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "plan_key": "implement",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_fc39ad3b06b8424ebdedb181aa950c9e:0",
+          "kind": "generic"
+        },
+        "created_at": "2026-11-23T04:16:22.843841Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatch_failed",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "error_kind": "input_required",
+          "error": "A2A suspension: approval"
+        },
+        "created_at": "2026-11-23T04:16:27.702407Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_waiting_input",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "suspend": "approval",
+          "approval_id": "approval_969350dfd36f4620a48eba0acb0b16ee",
+          "clarification_id": null
+        },
+        "created_at": "2026-11-23T04:16:27.706464Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatched",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "plan_key": "implement",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_fc39ad3b06b8424ebdedb181aa950c9e:0",
+          "kind": "generic"
+        },
+        "created_at": "2026-11-23T04:16:29.212397Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_completed",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_fc39ad3b06b8424ebdedb181aa950c9e",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "duration_s": 4.594,
+          "evidence_refs": 3,
+          "tool_events": 3
+        },
+        "created_at": "2026-11-23T04:16:33.811473Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatched",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "plan_key": "test_verify",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_f2d3dbecd6a54d2e98e14db7ad164240:0",
+          "kind": "generic"
+        },
+        "created_at": "2026-11-23T04:16:33.815773Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatch_failed",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "error_kind": "input_required",
+          "error": "A2A suspension: approval"
+        },
+        "created_at": "2026-11-23T04:16:37.736584Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_waiting_input",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "suspend": "approval",
+          "approval_id": "approval_b68912e03c3e41ce9f2663905a661c43",
+          "clarification_id": null
+        },
+        "created_at": "2026-11-23T04:16:37.740573Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "scheduler_waiting_input",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "waiting_nodes": [
+            "node_f2d3dbecd6a54d2e98e14db7ad164240"
+          ]
+        },
+        "created_at": "2026-11-23T04:16:37.743189Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatched",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "plan_key": "test_verify",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_f2d3dbecd6a54d2e98e14db7ad164240:0",
+          "kind": "generic"
+        },
+        "created_at": "2026-11-23T04:16:39.248096Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatch_failed",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "error_kind": "input_required",
+          "error": "A2A suspension: approval"
+        },
+        "created_at": "2026-11-23T04:16:43.935465Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_waiting_input",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "suspend": "approval",
+          "approval_id": "approval_72b257e27caf4764ac4f56ae138a3df1",
+          "clarification_id": null
+        },
+        "created_at": "2026-11-23T04:16:43.938973Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatched",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "plan_key": "test_verify",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_f2d3dbecd6a54d2e98e14db7ad164240:0",
+          "kind": "generic"
+        },
+        "created_at": "2026-11-23T04:16:45.444101Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_completed",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_f2d3dbecd6a54d2e98e14db7ad164240",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-2",
+          "duration_s": 4.44,
+          "evidence_refs": 3,
+          "tool_events": 3
+        },
+        "created_at": "2026-11-23T04:16:49.887979Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatched",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_5eefe793a65a4f7eb51716641a6deed7",
+          "plan_key": "final_report",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+          "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_5eefe793a65a4f7eb51716641a6deed7:0",
+          "kind": "generic"
+        },
+        "created_at": "2026-11-23T04:16:49.892232Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_completed",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_5eefe793a65a4f7eb51716641a6deed7",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+          "duration_s": 3.95,
+          "evidence_refs": 0,
+          "tool_events": 0
+        },
+        "created_at": "2026-11-23T04:16:53.847187Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_dispatched",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_d49defb3d2a54b6d95fa8fe18041a3ee",
+          "plan_key": "__synthesis__",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+          "task_id": "wf_2ad46017107e48f28916d5e396826c96:node_d49defb3d2a54b6d95fa8fe18041a3ee:0",
+          "kind": "synthesis"
+        },
+        "created_at": "2026-11-23T04:16:53.852481Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "node_completed",
+        "payload": {
+          "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+          "node_id": "node_d49defb3d2a54b6d95fa8fe18041a3ee",
+          "agent": "team-5461ac376eb646ba859788db4e6bb132:agent-1",
+          "duration_s": 3.65,
+          "evidence_refs": 0,
+          "tool_events": 0
+        },
+        "created_at": "2026-11-23T04:16:57.507069Z"
+      },
+      {
+        "workflow_id": "wf_2ad46017107e48f28916d5e396826c96",
+        "node_id": null,
+        "event_type": "workflow_completed",
+        "payload": {
+          "error": null,
+          "metrics": {
+            "total_nodes": 4,
+            "completed_nodes": 4,
+            "failed_nodes": 0,
+            "cancelled_nodes": 0,
+            "node_completion_rate": 1.0,
+            "max_depth": 4,
+            "a2a_calls": 8,
+            "retries": 0,
+            "reassignments": 0,
+            "plan_attempts": 1,
+            "llm_calls": 2,
+            "total_execution_seconds": 40.81,
+            "wall_clock_seconds": 40.854
+          }
+        },
+        "created_at": "2026-11-23T04:16:57.511522Z"
+      }
+    ]
+  },
+  "approvals_decided": 4
+}
